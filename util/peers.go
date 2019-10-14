@@ -34,13 +34,15 @@ func (peers *Peers) AddPeer(addr string) {
 }
 
 func (peers *Peers) PrintPeers() {
-	fmt.Print("PEERS ")
-	keys := make([]string, 0, len(*peers.PeersMap))
-	for k := range *peers.PeersMap {
-		keys = append(keys, k)
+	if(len(*peers.PeersMap) > 0){
+		fmt.Print("PEERS ")
+		keys := make([]string, 0, len(*peers.PeersMap))
+		for k := range *peers.PeersMap {
+			keys = append(keys, k)
+		}
+		for _, peer := range keys[:len(keys)-1] {
+			fmt.Print(peer + ",")
+		}
+		fmt.Println(keys[len(keys)-1])
 	}
-	for _, peer := range keys[:len(keys)-1] {
-		fmt.Print(peer + ",")
-	}
-	fmt.Println(keys[len(keys)-1])
 }
