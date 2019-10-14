@@ -8,11 +8,11 @@ type SimpleMessage struct {
 	Contents string
 }
 
-func PrintClientMessage(clientMessage *SimpleMessage) {
+func (clientMessage *SimpleMessage) PrintClientMessage() {
 	fmt.Println("CLIENT MESSAGE " + clientMessage.Contents)
 }
 
-func PrintPeerMessage(peerMessage *SimpleMessage) {
+func (peerMessage *SimpleMessage) PrintPeerMessage() {
 	fmt.Println("SIMPLE MESSAGE origin " + peerMessage.OriginalName + " from " + peerMessage.RelayPeerAddr +
 		" contents " + peerMessage.Contents)
 }

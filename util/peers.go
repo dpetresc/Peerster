@@ -5,9 +5,13 @@ import (
 	"strings"
 )
 
-
 type Peers struct {
 	PeersMap 	*map[string]bool
+}
+
+type PeerStatus struct {
+	Identifier string
+	NextID uint32
 }
 
 func NewPeers(peers string) *Peers{
