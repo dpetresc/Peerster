@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"time"
 	//"fmt"
 	"github.com/dpetresc/Peerster/gossip"
 	"sync"
@@ -45,6 +46,21 @@ func main() {
 		defer group.Done()
 		mGossiper.ListenPeers()
 	}()
+
+	if (antiEntropy != 0) {
+		group.Add(1)
+		go func(){
+			defer group.Done()
+			ticker := time.NewTicker(time.Duration(antiEntropy)*time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <- ticker.C :
+					mGossiper.SendStatusMessage()
+				}
+			}
+		}()
+	}
 	group.Wait()
 
 
