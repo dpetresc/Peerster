@@ -23,11 +23,9 @@ func main() {
 
 	clientAddrStr = "127.0.0.1:" + uiPort
 
-	packetToSend := util.GossipPacket{Simple:  &util.SimpleMessage{
-		OriginalName:  "",
-		RelayPeerAddr: "",
-		Contents:      msg,
-	}}
+	packetToSend := util.Message{
+		Text:      msg,
+	}
 	packetByte, err := protobuf.Encode(&packetToSend)
 	util.CheckError(err)
 
