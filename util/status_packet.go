@@ -6,18 +6,14 @@ type StatusPacket struct {
 	Want []PeerStatus
 }
 
-/* STATUS from <relay_addr> peer <name1> nextID <next_ID1> peer
-<name2> nextID <next_ID2>
-
- */
-
 func (peerMessage *StatusPacket) PrintStatusMessage(sourceAddr string) {
-	fmt.Print("STATUS from " + sourceAddr + " ")
+	var s string = ""
+	s += fmt.Sprintf("STATUS from %s ", sourceAddr)
 	for _, peer := range peerMessage.Want[:len(peerMessage.Want)-1] {
-		peer.printPeerStatus()
-		fmt.Print(" ")
+		s += peer.getPeerStatusAsStr()
+		s += " "
 	}
-	peerMessage.Want[len(peerMessage.Want)-1].printPeerStatus()
-	fmt.Println()
+	s += peerMessage.Want[len(peerMessage.Want)-1].getPeerStatusAsStr()
+	fmt.Println(s)
 }
 

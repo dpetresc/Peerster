@@ -20,8 +20,9 @@ type PeerReceivedMessages struct {
 	Received []*RumorMessage
 }
 
-func (peerStatus *PeerStatus) printPeerStatus() {
-	fmt.Printf("peer %s nextID %d", peerStatus.Identifier, peerStatus.NextID)
+func (peerStatus *PeerStatus) getPeerStatusAsStr() string {
+
+	return fmt.Sprintf("peer %s nextID %d", peerStatus.Identifier, peerStatus.NextID)
 }
 
 func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
@@ -86,16 +87,18 @@ func (peers *Peers) AddPeer(addr string) {
 }
 
 func (peers *Peers) PrintPeers() {
+	var s string = ""
 	if len(*peers.PeersMap) > 0 {
-		fmt.Print("PEERS ")
+		s += "PEERS "
 		keys := make([]string, 0, len(*peers.PeersMap))
 		for k := range *peers.PeersMap {
 			keys = append(keys, k)
 		}
 		for _, peer := range keys[:len(keys)-1] {
-			fmt.Print(peer + ",")
+			s = s + peer + ","
 		}
-		fmt.Println(keys[len(keys)-1])
+		s += keys[len(keys)-1]
+		fmt.Println(s)
 	}
 }
 

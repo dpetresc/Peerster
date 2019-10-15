@@ -233,7 +233,7 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 			Received: nil,
 		}
 	}
-	if (*gossiper.lAllMsg.allMsg)[origin].GetNextID() >= packet.Rumor.ID {
+	if (*gossiper.lAllMsg.allMsg)[origin].GetNextID() <= packet.Rumor.ID {
 		(*gossiper.lAllMsg.allMsg)[origin].AddMessage(packet, packet.Rumor.ID)
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
@@ -259,8 +259,8 @@ func (gossiper *Gossiper) Rumormonger(sourceAddr string, packet *util.GossipPack
 }
 
 func (gossiper *Gossiper) sendRumor(peer string, packet *util.GossipPacket, sourceAddr string) {
-	gossiper.sendPacketToPeer(peer, packet)
 	fmt.Println("MONGERING with " + peer)
+	gossiper.sendPacketToPeer(peer, packet)
 	go gossiper.WaitAck(sourceAddr, peer, packet)
 }
 
@@ -296,26 +296,27 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 		gossiper.lAllMsg.mutex.Lock()
 		gossiper.removeAck(peer, packet, ack)
 		// check if we have received a newer packet
-		packetToTransmit := gossiper.checkSenderNewPacket(sP)
+		packetToTransmit := gossiper.checkSenderNewMessage(sP)
 		if packetToTransmit != nil {
 			gossiper.sendRumor(peer, packetToTransmit, "")
-		} else {
-			// check if receiver has newer message than me
-			packetToTransmit = gossiper.checkReceiverNewMessage(sP)
+			gossiper.lAllMsg.mutex.Unlock()
+			return
 		}
-
+		// check if receiver has newer message than me
+		packetToTransmit = gossiper.checkReceiverNewMessage(sP)
 		if packetToTransmit != nil {
 			gossiper.sendPacketToPeer(peer, packetToTransmit)
-		} else {
-			// flip a coin
-			if rand.Int()%2 == 0 {
-				gossiper.Rumormonger(sourceAddr, packet, true)
-			}
+			gossiper.lAllMsg.mutex.Unlock()
+			return
 		}
 		gossiper.lAllMsg.mutex.Unlock()
+		// flip a coin
+		if rand.Int()%2 == 0 {
+			gossiper.Rumormonger(sourceAddr, packet, true)
+		}
 	case <-ticker.C:
 		gossiper.removeAck(peer, packet, ack)
-		fmt.Println("TIMEOUT")
+		// fmt.Println("TIMEOUT")
 		gossiper.Rumormonger(sourceAddr, packet, false)
 	}
 }
@@ -332,7 +333,7 @@ func (gossiper *Gossiper) removeAck(peer string, packet *util.GossipPacket, ack 
 	gossiper.lAcks.mutex.Unlock()
 }
 
-func (gossiper *Gossiper) checkSenderNewPacket(sP util.StatusPacket) *util.GossipPacket {
+func (gossiper *Gossiper) checkSenderNewMessage(sP util.StatusPacket) *util.GossipPacket {
 	var packetToTransmit *util.GossipPacket = nil
 	for origin := range *gossiper.lAllMsg.allMsg {
 		peerStatusSender := (*gossiper.lAllMsg.allMsg)[origin]
@@ -391,10 +392,11 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 	defer gossiper.lAllMsg.mutex.Unlock()
 	gossiper.lAcks.mutex.Lock()
 	defer gossiper.lAcks.mutex.Unlock()
-	// check if we have received a newer packet
+
 	var packetToTransmit *util.GossipPacket
 	var packetToTransmit2 *util.GossipPacket
-	packetToTransmit = gossiper.checkSenderNewPacket(*packet.Status)
+	// check if we have received a newer packet
+	packetToTransmit = gossiper.checkSenderNewMessage(*packet.Status)
 	if packetToTransmit == nil {
 		// check if receiver has newer message than me
 		packetToTransmit2 = gossiper.checkReceiverNewMessage(*packet.Status)
@@ -402,7 +404,6 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 			fmt.Println("IN SYNC WITH " + sourceAddrString)
 		}
 	}
-
 	for _, peerStatus := range packet.Status.Want {
 		origin := peerStatus.Identifier
 		// sourceAddr
