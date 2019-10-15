@@ -7,7 +7,7 @@ import (
 )
 
 func CheckError(err error) {
-	if err  != nil {
+	if err != nil {
 		log.Fatal(err)
 	}
 }

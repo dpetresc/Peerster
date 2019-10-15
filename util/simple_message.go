@@ -3,9 +3,9 @@ package util
 import "fmt"
 
 type SimpleMessage struct {
-	OriginalName string
+	OriginalName  string
 	RelayPeerAddr string
-	Contents string
+	Contents      string
 }
 
 func (clientMessage *SimpleMessage) PrintClientMessage() {

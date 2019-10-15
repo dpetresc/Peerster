@@ -1,7 +1,6 @@
 package main
 
 import (
-	//"fmt"
 	"flag"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
@@ -24,7 +23,7 @@ func main() {
 	clientAddrStr = "127.0.0.1:" + uiPort
 
 	packetToSend := util.Message{
-		Text:      msg,
+		Text: msg,
 	}
 	packetByte, err := protobuf.Encode(&packetToSend)
 	util.CheckError(err)

@@ -2,10 +2,9 @@ package main
 
 import (
 	"flag"
-	"time"
-	//"fmt"
 	"github.com/dpetresc/Peerster/gossip"
 	"sync"
+	"time"
 )
 
 var uiPort string
@@ -18,7 +17,6 @@ var antiEntropy uint
 var clientAddr string
 
 var mGossiper *gossip.Gossiper
-
 
 func main() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the UI client")
@@ -37,32 +35,31 @@ func main() {
 
 	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple)
 
-	go func(){
+	go func() {
 		defer group.Done()
 		mGossiper.ListenClient()
 	}()
 
-	go func(){
+	go func() {
 		defer group.Done()
 		mGossiper.ListenPeers()
 	}()
 
-	if (antiEntropy != 0) {
+	if antiEntropy != 0 {
 		group.Add(1)
-		go func(){
+		go func() {
 			defer group.Done()
-			ticker := time.NewTicker(time.Duration(antiEntropy)*time.Second)
+			ticker := time.NewTicker(time.Duration(antiEntropy) * time.Second)
 			defer ticker.Stop()
 			for {
 				select {
-				case <- ticker.C :
-					mGossiper.SendStatusMessage()
+				case <-ticker.C:
+					mGossiper.SendStatusPacket("")
 				}
 			}
 		}()
 	}
 	group.Wait()
-
 
 	//fmt.Println("Yes")
 

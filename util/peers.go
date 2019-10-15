@@ -7,16 +7,16 @@ import (
 )
 
 type Peers struct {
-	PeersMap 	*map[string]bool
+	PeersMap *map[string]bool
 }
 
 type PeerStatus struct {
 	Identifier string
-	NextID uint32
+	NextID     uint32
 }
 
 type PeerReceivedMessages struct {
-	Peer PeerStatus
+	Peer     PeerStatus
 	Received []*RumorMessage
 }
 
@@ -24,7 +24,7 @@ func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
 	if int(id) == (len(p.Received) + 1) {
 		p.Received = append(p.Received, packet.Rumor)
 	} else if int(id) <= len(p.Received) {
-		p.Received[(int(id)-1)] = packet.Rumor
+		p.Received[(int(id) - 1)] = packet.Rumor
 	} else if int(id) > len(p.Received) {
 		nbToAdd := int(id) - len(p.Received) - 1
 		for i := 0; i < nbToAdd; i++ {
@@ -36,7 +36,7 @@ func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
 }
 
 func (p *PeerReceivedMessages) findNextID() uint32 {
-	var firstNil uint32 = uint32(len(p.Received))
+	var firstNil = uint32(len(p.Received))
 	for i := 0; i < len(p.Received); i++ {
 		if p.Received[i] == nil {
 			firstNil = uint32(i)
@@ -44,6 +44,10 @@ func (p *PeerReceivedMessages) findNextID() uint32 {
 		}
 	}
 	return firstNil + 1
+}
+
+func (p *PeerReceivedMessages) FindPacketAt(index uint32) *RumorMessage {
+	return p.Received[int(index)]
 }
 
 func (p *PeerReceivedMessages) GetNextID() uint32 {
@@ -54,15 +58,15 @@ func (p *PeerReceivedMessages) setNextID(id uint32) {
 	p.Peer.NextID = id
 }
 
-func NewPeers(peers string) *Peers{
+func NewPeers(peers string) *Peers {
 	var peersArray []string
 	if peers != "" {
 		peersArray = strings.Split(peers, ",")
-	}else {
+	} else {
 		peersArray = []string{}
 	}
 	peersMap := make(map[string]bool)
-	for i := 0; i < len(peersArray); i+=1 {
+	for i := 0; i < len(peersArray); i += 1 {
 		peersMap[peersArray[i]] = true
 	}
 	return &Peers{
@@ -78,7 +82,7 @@ func (peers *Peers) AddPeer(addr string) {
 }
 
 func (peers *Peers) PrintPeers() {
-	if(len(*peers.PeersMap) > 0){
+	if len(*peers.PeersMap) > 0 {
 		fmt.Print("PEERS ")
 		keys := make([]string, 0, len(*peers.PeersMap))
 		for k := range *peers.PeersMap {
@@ -104,8 +108,8 @@ func (peers *Peers) ChooseRandomPeer(sourcePeer string) string {
 		return ""
 	} else {
 		min := 0
-		max := len(keys)-1
-		randIndex := rand.Intn(max - min + 1) + min
+		max := len(keys) - 1
+		randIndex := rand.Intn(max-min+1) + min
 		return keys[randIndex]
 	}
 }
