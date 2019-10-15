@@ -20,6 +20,10 @@ type PeerReceivedMessages struct {
 	Received []*RumorMessage
 }
 
+func (peerStatus *PeerStatus) printPeerStatus() {
+	fmt.Print("peer " + peerStatus.Identifier + " nextID " + string(peerStatus.NextID))
+}
+
 func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
 	if int(id) == (len(p.Received) + 1) {
 		p.Received = append(p.Received, packet.Rumor)
