@@ -206,6 +206,7 @@ echo -e "${RED}###CHECK flipped coin${NC}"
 gossipPort=5000
 for i in `seq 0 9`;
 do
+echo "$i"
     relayPort=$(($gossipPort-1))
     if [[ "$relayPort" == 4999 ]] ; then
         relayPort=5009
@@ -216,9 +217,11 @@ do
     msgLine2="FLIPPED COIN sending rumor to 127.0.0.1:$nextPort"
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
+		echo "$msgLine1" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
+		echo "$msgLine2" "${outputFiles[$i]}"
         failed="T"
     fi
 	gossipPort=$(($gossipPort+1))
