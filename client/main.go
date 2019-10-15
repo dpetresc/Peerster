@@ -8,14 +8,12 @@ import (
 )
 
 var uiPort string
-var guiPort string
 var msg string
 
 var clientAddrStr string
 
 func main() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the command line interface")
-	flag.StringVar(&guiPort, "GUIPort", "10000", "port for the graphical interface")
 	flag.StringVar(&msg, "msg", "", "message to be send")
 
 	flag.Parse()
