@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+		<script type="text/javascript" src="frontend.js"></script>
+    </head>
+    <body>
+        <!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+        <h1 id="title" class="title">Peerster GUI</h1>
+
+        <h3 id="nodeName"></h3>
+
+        <button onclick="addNode()" class="btn btn-default" id="addNode">Add Peer</Button>
+        <input  type="text" id="sendNode" placeholder="Add a new peer here (IP:PORT)" class="form-control"/>
+
+        <button onclick="sendMessage()" class="btn btn-default" id="addMessage">Send Message</Button>
+        <input  type="text" id="sendMessage" placeholder="Type your message here" class="form-control"/>
+
+        <h3 id="knownPeers" style="visibility: hidden">Known Peers</h3>
+        <ul id="peers" style="width:100%">
+        </ul>
+
+        <h3 id="chat" style="visibility: hidden">Chat</h3>
+        <table id="messages">
+            <tr>
+              
+            </tr>
+        </table>
+        
+                        
+    </body>
+</html>

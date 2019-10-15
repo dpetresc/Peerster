@@ -11,14 +11,14 @@ import (
 )
 
 type LockPeers struct {
-	peers *util.Peers
-	mutex sync.Mutex
+	Peers *util.Peers
+	Mutex sync.Mutex
 }
 
 type LockAllMsg struct {
 	allMsg *map[string]*util.PeerReceivedMessages
 	// Attention always lock lAllMsg first before locking lAcks when we need both
-	mutex  sync.Mutex
+	mutex sync.Mutex
 }
 
 type Ack struct {
@@ -28,7 +28,7 @@ type Ack struct {
 
 type LockAcks struct {
 	// peer(IP:PORT) -> Origine -> Ack
-	acks  *map[string]map[string][]Ack
+	acks *map[string]map[string][]Ack
 	// Attention always lock lAllMsg first before locking lAcks when we need both
 	mutex sync.Mutex
 }
@@ -36,15 +36,16 @@ type LockAcks struct {
 type Gossiper struct {
 	address *net.UDPAddr
 	conn    *net.UDPConn
-	name    string
+	Name    string
 	// change to sync
-	lPeers      *LockPeers
-	simple     bool
+	LPeers      *LockPeers
+	simple      bool
 	antiEntropy uint
-	clientAddr *net.UDPAddr
-	clientConn *net.UDPConn
-	lAllMsg    *LockAllMsg
-	lAcks      *LockAcks
+	ClientAddr  *net.UDPAddr
+	ClientConn  *net.UDPConn
+	lAllMsg     *LockAllMsg
+	lAcks       *LockAcks
+	rumorList   []util.RumorMessage
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy uint) *Gossiper {
@@ -79,19 +80,19 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 
 	return &Gossiper{
-		address:    udpAddr,
-		conn:       udpConn,
-		name:       name,
-		lPeers:      &LockPeers{
-			peers: peers,
-			mutex: sync.Mutex{},
+		address: udpAddr,
+		conn:    udpConn,
+		Name:    name,
+		LPeers: &LockPeers{
+			Peers: peers,
+			Mutex: sync.Mutex{},
 		},
-		simple:     simple,
+		simple:      simple,
 		antiEntropy: antiEntropy,
-		clientAddr: udpClientAddr,
-		clientConn: udpClientConn,
-		lAllMsg:    &lockAllMsg,
-		lAcks:      &lacks,
+		ClientAddr:  udpClientAddr,
+		ClientConn:  udpClientConn,
+		lAllMsg:     &lockAllMsg,
+		lAcks:       &lacks,
 	}
 }
 
@@ -105,18 +106,18 @@ func (gossiper *Gossiper) sendPacketToPeer(peer string, packetToSend *util.Gossi
 }
 
 func (gossiper *Gossiper) sendPacketToPeers(source string, packetToSend *util.GossipPacket) {
-	gossiper.lPeers.mutex.Lock()
-	for peer := range *gossiper.lPeers.peers.PeersMap {
+	gossiper.LPeers.Mutex.Lock()
+	for peer := range *gossiper.LPeers.Peers.PeersMap {
 		if peer != source {
 			gossiper.sendPacketToPeer(peer, packetToSend)
 		}
 	}
-	gossiper.lPeers.mutex.Unlock()
+	gossiper.LPeers.Mutex.Unlock()
 }
 
 /************************************CLIENT*****************************************/
 func (gossiper *Gossiper) readClientPacket() *util.Message {
-	connection := gossiper.clientConn
+	connection := gossiper.ClientConn
 	var packet util.Message
 	packetBytes := make([]byte, 2048)
 	n, _, err := connection.ReadFromUDP(packetBytes)
@@ -127,7 +128,7 @@ func (gossiper *Gossiper) readClientPacket() *util.Message {
 }
 
 func (gossiper *Gossiper) ListenClient() {
-	defer gossiper.clientConn.Close()
+	defer gossiper.ClientConn.Close()
 	for {
 		packet := gossiper.readClientPacket()
 		packet.PrintClientMessage()
@@ -137,23 +138,23 @@ func (gossiper *Gossiper) ListenClient() {
 
 func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 	if gossiper.simple {
-		// the OriginalName of the message to its own name
+		// the OriginalName of the message to its own Name
 		// sets relay peer to its own address
 		packetToSend := util.GossipPacket{Simple: &util.SimpleMessage{
-			OriginalName:  gossiper.name,
+			OriginalName:  gossiper.Name,
 			RelayPeerAddr: util.UDPAddrToString(gossiper.address),
 			Contents:      packet.Text,
 		}}
 		gossiper.sendPacketToPeers("", &packetToSend)
 	} else {
 		gossiper.lAllMsg.mutex.Lock()
-		id := (*gossiper.lAllMsg.allMsg)[gossiper.name].GetNextID()
+		id := (*gossiper.lAllMsg.allMsg)[gossiper.Name].GetNextID()
 		packetToSend := util.GossipPacket{Rumor: &util.RumorMessage{
-			Origin: gossiper.name,
+			Origin: gossiper.Name,
 			ID:     id,
 			Text:   packet.Text,
 		}}
-		(*gossiper.lAllMsg.allMsg)[gossiper.name].AddMessage(&packetToSend, id)
+		(*gossiper.lAllMsg.allMsg)[gossiper.Name].AddMessage(&packetToSend, id)
 		gossiper.lAllMsg.mutex.Unlock()
 		go gossiper.Rumormonger("", &packetToSend, false)
 	}
@@ -167,9 +168,11 @@ func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) 
 	n, sourceAddr, err := connection.ReadFromUDP(packetBytes)
 	// In case simple flag is set, we add manually the RelayPeerAddr of the packets afterwards
 	if !gossiper.simple {
-		gossiper.lPeers.mutex.Lock()
-		gossiper.lPeers.peers.AddPeer(util.UDPAddrToString(sourceAddr))
-		gossiper.lPeers.mutex.Unlock()
+		if sourceAddr != gossiper.address {
+			gossiper.LPeers.Mutex.Lock()
+			gossiper.LPeers.Peers.AddPeer(util.UDPAddrToString(sourceAddr))
+			gossiper.LPeers.Mutex.Unlock()
+		}
 	}
 	util.CheckError(err)
 	errDecode := protobuf.Decode(packetBytes[:n], &packet)
@@ -191,9 +194,9 @@ func (gossiper *Gossiper) ListenPeers() {
 			for {
 				select {
 				case <-ticker.C:
-					gossiper.lPeers.mutex.Lock()
-					p := gossiper.lPeers.peers.ChooseRandomPeer("")
-					gossiper.lPeers.mutex.Unlock()
+					gossiper.LPeers.Mutex.Lock()
+					p := gossiper.LPeers.Peers.ChooseRandomPeer("")
+					gossiper.LPeers.Mutex.Unlock()
 					if p != "" {
 						gossiper.lAllMsg.mutex.Lock()
 						gossiper.SendStatusPacket(p)
@@ -225,10 +228,12 @@ func (gossiper *Gossiper) ListenPeers() {
 
 func (gossiper *Gossiper) HandleSimplePacket(packet *util.GossipPacket) {
 	packet.Simple.PrintSimpleMessage()
-	gossiper.lPeers.mutex.Lock()
-	gossiper.lPeers.peers.AddPeer(packet.Simple.RelayPeerAddr)
-	gossiper.lPeers.peers.PrintPeers()
-	gossiper.lPeers.mutex.Unlock()
+	gossiper.LPeers.Mutex.Lock()
+	if packet.Simple.RelayPeerAddr != util.UDPAddrToString(gossiper.address){
+		gossiper.LPeers.Peers.AddPeer(packet.Simple.RelayPeerAddr)
+	}
+	gossiper.LPeers.Peers.PrintPeers()
+	gossiper.LPeers.Mutex.Unlock()
 	packetToSend := util.GossipPacket{Simple: &util.SimpleMessage{
 		OriginalName:  packet.Simple.OriginalName,
 		RelayPeerAddr: util.UDPAddrToString(gossiper.address),
@@ -240,9 +245,9 @@ func (gossiper *Gossiper) HandleSimplePacket(packet *util.GossipPacket) {
 func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAddr *net.UDPAddr) {
 	sourceAddrString := util.UDPAddrToString(sourceAddr)
 	packet.Rumor.PrintRumorMessage(sourceAddrString)
-	gossiper.lPeers.mutex.Lock()
-	gossiper.lPeers.peers.PrintPeers()
-	gossiper.lPeers.mutex.Unlock()
+	gossiper.LPeers.Mutex.Lock()
+	gossiper.LPeers.Peers.PrintPeers()
+	gossiper.LPeers.Mutex.Unlock()
 	gossiper.lAllMsg.mutex.Lock()
 	origin := packet.Rumor.Origin
 	_, ok := (*gossiper.lAllMsg.allMsg)[origin]
@@ -270,9 +275,9 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 
 func (gossiper *Gossiper) Rumormonger(sourceAddr string, packet *util.GossipPacket, flippedCoin bool) {
 	// tu as reçu le message depuis sourceAddr et tu ne veux pas le lui renvoyer
-	gossiper.lPeers.mutex.Lock()
-	p := gossiper.lPeers.peers.ChooseRandomPeer(sourceAddr)
-	gossiper.lPeers.mutex.Unlock()
+	gossiper.LPeers.Mutex.Lock()
+	p := gossiper.LPeers.Peers.ChooseRandomPeer(sourceAddr)
+	gossiper.LPeers.Mutex.Unlock()
 	if p != "" {
 		if flippedCoin {
 			fmt.Println("FLIPPED COIN sending rumor to " + p)
@@ -407,10 +412,10 @@ func (gossiper *Gossiper) checkReceiverNewMessage(sP util.StatusPacket) *util.Go
 func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAddr *net.UDPAddr) {
 	sourceAddrString := util.UDPAddrToString(sourceAddr)
 	packet.Status.PrintStatusMessage(sourceAddrString)
-	gossiper.lPeers.mutex.Lock()
-	gossiper.lPeers.peers.PrintPeers()
-	gossiper.lPeers.mutex.Unlock()
-	var isAck bool = false
+	gossiper.LPeers.Mutex.Lock()
+	gossiper.LPeers.Peers.PrintPeers()
+	gossiper.LPeers.Mutex.Unlock()
+	var isAck = false
 
 	gossiper.lAllMsg.mutex.Lock()
 	defer gossiper.lAllMsg.mutex.Unlock()
@@ -441,7 +446,7 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 			}
 		}
 	}
-	if !isAck{
+	if !isAck {
 		if packetToTransmit != nil {
 			// we have received a newer packet
 			gossiper.sendRumor(sourceAddrString, packetToTransmit, "")

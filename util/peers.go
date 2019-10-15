@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+var AllMessagesInOrder []RumorMessage = make([]RumorMessage, 0)
+
 type Peers struct {
 	PeersMap *map[string]bool
 }
@@ -26,9 +28,14 @@ func (peerStatus *PeerStatus) getPeerStatusAsStr() string {
 }
 
 func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
+	var added bool = false
 	if int(id) == (len(p.Received) + 1) {
 		p.Received = append(p.Received, packet.Rumor)
+		added = true
 	} else if int(id) <= len(p.Received) {
+		if p.Received[(int(id) - 1)] != nil {
+			added = true
+		}
 		p.Received[(int(id) - 1)] = packet.Rumor
 	} else if int(id) > len(p.Received) {
 		nbToAdd := int(id) - len(p.Received) - 1
@@ -36,6 +43,10 @@ func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
 			p.Received = append(p.Received, nil)
 		}
 		p.Received = append(p.Received, packet.Rumor)
+		added = true
+	}
+	if added {
+		AllMessagesInOrder = append(AllMessagesInOrder, *packet.Rumor)
 	}
 	p.setNextID(p.findNextID())
 }
