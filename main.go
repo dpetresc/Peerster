@@ -20,7 +20,7 @@ var clientAddr string
 
 var mGossiper *gossip.Gossiper
 
-func main() {
+func init() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the UI client")
 	flag.StringVar(&gossipAddr, "gossipAddr", "127.0.0.1:5000", "ip:port for the gossip")
 	flag.StringVar(&name, "name", "", "name of the gossip")
@@ -30,7 +30,9 @@ func main() {
 	flag.BoolVar(&gui, "gui", false, "run gossip with gui")
 
 	flag.Parse()
+}
 
+func main() {
 	var group sync.WaitGroup
 	group.Add(2)
 

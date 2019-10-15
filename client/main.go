@@ -35,6 +35,4 @@ func main() {
 	_, err = clientConn.Write(packetByte)
 	util.CheckError(err)
 
-	//fmt.Println("Yes")
-
 }

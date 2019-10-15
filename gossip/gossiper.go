@@ -210,7 +210,9 @@ func (gossiper *Gossiper) ListenPeers() {
 
 	for {
 		packet, sourceAddr := gossiper.readGossipPacket()
+		//fmt.Println(gossiper.simple)
 		if gossiper.simple {
+			//fmt.Println("TESTETSTSTSTTSS")
 			if packet.Simple != nil {
 				go gossiper.HandleSimplePacket(packet)
 			} else {
