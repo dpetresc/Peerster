@@ -4,7 +4,6 @@ import (
 	"flag"
 	"github.com/dpetresc/Peerster/gossip"
 	"sync"
-	"time"
 )
 
 var uiPort string
@@ -33,7 +32,7 @@ func main() {
 
 	clientAddr = "127.0.0.1:" + uiPort
 
-	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple)
+	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy)
 
 	go func() {
 		defer group.Done()
@@ -44,25 +43,6 @@ func main() {
 		defer group.Done()
 		mGossiper.ListenPeers()
 	}()
-
-	// in simple mode you can't receive status packets
-	// antiEntropy = 0 deactivates the entropy
-	if !simple && antiEntropy != 0 {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			ticker := time.NewTicker(time.Duration(antiEntropy) * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					mGossiper.SendStatusPacket("")
-				}
-			}
-		}()
-	}
 	group.Wait()
-
-	//fmt.Println("Yes")
 
 }

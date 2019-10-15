@@ -9,6 +9,6 @@ type SimpleMessage struct {
 }
 
 func (peerMessage *SimpleMessage) PrintSimpleMessage() {
-	fmt.Println("SIMPLE MESSAGE origin " + peerMessage.OriginalName + " from " + peerMessage.RelayPeerAddr +
-		" contents " + peerMessage.Contents)
+	fmt.Println("SIMPLE MESSAGE origin %s from %s contents %s\n", peerMessage.OriginalName,
+		peerMessage.RelayPeerAddr, peerMessage.Contents)
 }

@@ -35,13 +35,14 @@ type Gossiper struct {
 	// change to sync
 	peers      *util.Peers
 	simple     bool
+	antiEntropy uint
 	clientAddr *net.UDPAddr
 	clientConn *net.UDPConn
 	lAllMsg    *LockAllMsg
 	lAcks      *LockAcks
 }
 
-func NewGossiper(clientAddr, address, name, peersStr string, simple bool) *Gossiper {
+func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy uint) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -78,6 +79,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool) *Gossi
 		name:       name,
 		peers:      peers,
 		simple:     simple,
+		antiEntropy: antiEntropy,
 		clientAddr: udpClientAddr,
 		clientConn: udpClientConn,
 		lAllMsg:    &lockAllMsg,
@@ -167,6 +169,24 @@ func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) 
 func (gossiper *Gossiper) ListenPeers() {
 	defer gossiper.conn.Close()
 
+	// Anti - Entropy
+	// in simple mode you can't receive status packets
+	// antiEntropy = 0 deactivates the entropy
+	if !gossiper.simple && gossiper.antiEntropy != 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(gossiper.antiEntropy) * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					gossiper.lAllMsg.mutex.Lock()
+					gossiper.SendStatusPacket("")
+					gossiper.lAllMsg.mutex.Unlock()
+				}
+			}
+		}()
+	}
+
 	for {
 		packet, sourceAddr := gossiper.readGossipPacket()
 		if gossiper.simple {
@@ -215,15 +235,15 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 	}
 	if (*gossiper.lAllMsg.allMsg)[origin].GetNextID() >= packet.Rumor.ID {
 		(*gossiper.lAllMsg.allMsg)[origin].AddMessage(packet, packet.Rumor.ID)
-		gossiper.lAllMsg.mutex.Unlock()
 		gossiper.SendStatusPacket(sourceAddrString)
+		gossiper.lAllMsg.mutex.Unlock()
 		// send a copy of packet to random neighbor - can not send to the source of the message
 		gossiper.Rumormonger(sourceAddrString, packet, false)
 
 	} else {
+		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
 		// message already seen - still need to ack
-		gossiper.SendStatusPacket(sourceAddrString)
 	}
 }
 
@@ -274,6 +294,7 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 	select {
 	case sP := <-ackChannel:
 		gossiper.lAllMsg.mutex.Lock()
+		gossiper.removeAck(peer, packet, ack)
 		// check if we have received a newer packet
 		packetToTransmit := gossiper.checkSenderNewPacket(sP)
 		if packetToTransmit != nil {
@@ -291,10 +312,10 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 				gossiper.Rumormonger(sourceAddr, packet, true)
 			}
 		}
-		gossiper.removeAck(peer, packet, ack)
 		gossiper.lAllMsg.mutex.Unlock()
 	case <-ticker.C:
 		gossiper.removeAck(peer, packet, ack)
+		fmt.Println("TIMEOUT")
 		gossiper.Rumormonger(sourceAddr, packet, false)
 	}
 }
@@ -351,8 +372,10 @@ func (gossiper *Gossiper) checkReceiverNewMessage(sP util.StatusPacket) *util.Go
 		if !ok ||
 			peerStatusReceiver.NextID > (*gossiper.lAllMsg.allMsg)[peerStatusReceiver.Identifier].GetNextID() {
 			// gossiper don't have origin node
-			packetToTransmit = gossiper.createStatusPacket()
-			break
+			if peerStatusReceiver.NextID > 1 {
+				packetToTransmit = gossiper.createStatusPacket()
+				break
+			}
 		}
 	}
 	return packetToTransmit
@@ -364,6 +387,10 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 	gossiper.peers.PrintPeers()
 	var isAck bool = false
 
+	gossiper.lAllMsg.mutex.Lock()
+	defer gossiper.lAllMsg.mutex.Unlock()
+	gossiper.lAcks.mutex.Lock()
+	defer gossiper.lAcks.mutex.Unlock()
 	// check if we have received a newer packet
 	var packetToTransmit *util.GossipPacket
 	var packetToTransmit2 *util.GossipPacket
@@ -376,10 +403,6 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 		}
 	}
 
-	gossiper.lAllMsg.mutex.Lock()
-	defer gossiper.lAllMsg.mutex.Unlock()
-	gossiper.lAcks.mutex.Lock()
-	defer gossiper.lAcks.mutex.Unlock()
 	for _, peerStatus := range packet.Status.Want {
 		origin := peerStatus.Identifier
 		// sourceAddr
@@ -405,8 +428,7 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 }
 
 func (gossiper *Gossiper) createStatusPacket() *util.GossipPacket {
-	gossiper.lAllMsg.mutex.Lock()
-	defer gossiper.lAllMsg.mutex.Unlock()
+	// Attention must acquire lock before using this method
 	want := make([]util.PeerStatus, 0, len(*gossiper.lAllMsg.allMsg))
 	for _, peerRcvMsg := range *gossiper.lAllMsg.allMsg {
 		want = append(want, peerRcvMsg.Peer)
@@ -417,6 +439,7 @@ func (gossiper *Gossiper) createStatusPacket() *util.GossipPacket {
 }
 
 func (gossiper *Gossiper) SendStatusPacket(dest string) {
+	// Attention must acquire lock before using this method
 	statusPacket := gossiper.createStatusPacket()
 	if dest == "" {
 		// Anti-entropy

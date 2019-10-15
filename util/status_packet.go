@@ -13,10 +13,11 @@ type StatusPacket struct {
 
 func (peerMessage *StatusPacket) PrintStatusMessage(sourceAddr string) {
 	fmt.Print("STATUS from " + sourceAddr + " ")
-	for _, peer := range peerMessage.Want {
+	for _, peer := range peerMessage.Want[:len(peerMessage.Want)-1] {
 		peer.printPeerStatus()
 		fmt.Print(" ")
 	}
-	fmt.Println(peerMessage.Want[len(peerMessage.Want)-1].printPeerStatus)
+	peerMessage.Want[len(peerMessage.Want)-1].printPeerStatus()
+	fmt.Println()
 }
 

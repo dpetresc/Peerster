@@ -7,5 +7,5 @@ type Message struct {
 }
 
 func (clientMessage *Message) PrintClientMessage() {
-	fmt.Println("CLIENT MESSAGE " + clientMessage.Text)
+	fmt.Printf("CLIENT MESSAGE %s\n", clientMessage.Text)
 }

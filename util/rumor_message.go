@@ -9,6 +9,6 @@ type RumorMessage struct {
 }
 
 func (peerMessage *RumorMessage) PrintRumorMessage(sourceAddr string) {
-	fmt.Println("RUMOR origin " + peerMessage.Origin + " from " + sourceAddr + " ID " +
-		string(peerMessage.ID) + " contents " + peerMessage.Text)
+	fmt.Printf("RUMOR origin %s from %s ID %d contents %s\n", peerMessage.Origin,
+		sourceAddr, peerMessage.ID, peerMessage.Text)
 }

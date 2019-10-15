@@ -21,7 +21,7 @@ type PeerReceivedMessages struct {
 }
 
 func (peerStatus *PeerStatus) printPeerStatus() {
-	fmt.Print("peer " + peerStatus.Identifier + " nextID " + string(peerStatus.NextID))
+	fmt.Printf("peer %s nextID %d", peerStatus.Identifier, peerStatus.NextID)
 }
 
 func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
