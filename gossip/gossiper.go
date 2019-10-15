@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
-	"log"
 	"math/rand"
 	"net"
 	"sync"
@@ -174,14 +173,14 @@ func (gossiper *Gossiper) ListenPeers() {
 			if packet.Simple != nil {
 				go gossiper.HandleSimplePacket(packet)
 			} else {
-				log.Fatal("Receive wrong packet format with simple flag !")
+				//log.Fatal("Receive wrong packet format with simple flag !")
 			}
 		} else if packet.Rumor != nil {
 			go gossiper.HandleRumorPacket(packet, sourceAddr)
 		} else if packet.Status != nil {
 			go gossiper.HandleStatusPacket(packet, sourceAddr)
 		} else {
-			log.Fatal("Packet contains neither Status nor Rumor and gossiper wasn't used with simple flag !")
+			//log.Fatal("Packet contains neither Status nor Rumor and gossiper wasn't used with simple flag !")
 		}
 	}
 }
@@ -320,8 +319,10 @@ func (gossiper *Gossiper) checkSenderNewPacket(sP util.StatusPacket) *util.Gossi
 		for _, peerStatusReceiver := range sP.Want {
 			if peerStatusReceiver.Identifier == origin {
 				if peerStatusSender.GetNextID() > peerStatusReceiver.NextID {
-					packetToTransmit = &util.GossipPacket{Rumor:
-					peerStatusSender.FindPacketAt(peerStatusReceiver.NextID - 1),
+					if peerStatusSender.GetNextID() > 1 {
+						packetToTransmit = &util.GossipPacket{Rumor:
+						peerStatusSender.FindPacketAt(peerStatusReceiver.NextID - 1),
+						}
 					}
 				}
 				foundOrigin = true
@@ -330,8 +331,10 @@ func (gossiper *Gossiper) checkSenderNewPacket(sP util.StatusPacket) *util.Gossi
 		}
 		if !foundOrigin {
 			// the receiver has never received any message from origin yet
-			packetToTransmit = &util.GossipPacket{Rumor:
-			peerStatusSender.FindPacketAt(0),
+			if peerStatusSender.GetNextID() > 1 {
+				packetToTransmit = &util.GossipPacket{Rumor:
+				peerStatusSender.FindPacketAt(0),
+				}
 			}
 		}
 		if packetToTransmit != nil {
@@ -361,6 +364,18 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 	gossiper.peers.PrintPeers()
 	var isAck bool = false
 
+	// check if we have received a newer packet
+	var packetToTransmit *util.GossipPacket
+	var packetToTransmit2 *util.GossipPacket
+	packetToTransmit = gossiper.checkSenderNewPacket(*packet.Status)
+	if packetToTransmit == nil {
+		// check if receiver has newer message than me
+		packetToTransmit2 = gossiper.checkReceiverNewMessage(*packet.Status)
+		if packetToTransmit2 == nil {
+			fmt.Println("IN SYNC WITH " + sourceAddrString)
+		}
+	}
+
 	gossiper.lAllMsg.mutex.Lock()
 	defer gossiper.lAllMsg.mutex.Unlock()
 	gossiper.lAcks.mutex.Lock()
@@ -376,17 +391,6 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 					ack.ackChannel <- *packet.Status
 				}
 			}
-		}
-	}
-	// check if we have received a newer packet
-	var packetToTransmit *util.GossipPacket
-	var packetToTransmit2 *util.GossipPacket
-	packetToTransmit = gossiper.checkSenderNewPacket(*packet.Status)
-	if packetToTransmit == nil {
-		// check if receiver has newer message than me
-		packetToTransmit2 = gossiper.checkReceiverNewMessage(*packet.Status)
-		if packetToTransmit2 == nil {
-			fmt.Println("IN SYNC WITH " + sourceAddrString)
 		}
 	}
 	if !isAck{
