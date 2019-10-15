@@ -339,7 +339,6 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 		}
 	case <-ticker.C:
 		gossiper.removeAck(peer, packet, ack)
-		// fmt.Println("TIMEOUT")
 		gossiper.Rumormonger(sourceAddr, packet, false)
 	}
 }
