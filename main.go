@@ -45,7 +45,9 @@ func main() {
 		mGossiper.ListenPeers()
 	}()
 
-	if antiEntropy != 0 {
+	// in simple mode you can't receive status packets
+	// antiEntropy = 0 deactivates the entropy
+	if !simple && antiEntropy != 0 {
 		group.Add(1)
 		go func() {
 			defer group.Done()
