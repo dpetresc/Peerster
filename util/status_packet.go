@@ -7,7 +7,6 @@ type StatusPacket struct {
 }
 
 func (peerMessage *StatusPacket) PrintStatusMessage(sourceAddr string) {
-	fmt.Println(peerMessage.Want)
 	if (len(peerMessage.Want) > 0) {
 		var s string = ""
 		s += fmt.Sprintf("STATUS from %s ", sourceAddr)
