@@ -66,7 +66,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		Peer: util.PeerStatus{
 			Identifier: name,
 			NextID:     1,},
-		Received: nil,
+		Received: make([]*util.RumorMessage, 0),
 	}
 	lockAllMsg := LockAllMsg{
 		allMsg: &allMsg,
@@ -256,7 +256,7 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 			Peer: util.PeerStatus{
 				Identifier: origin,
 				NextID:     1,},
-			Received: nil,
+			Received: make([]*util.RumorMessage, 0),
 		}
 	}
 	if (*gossiper.lAllMsg.allMsg)[origin].GetNextID() <= packet.Rumor.ID {
@@ -452,7 +452,7 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 			gossiper.sendRumor(sourceAddrString, packetToTransmit, "")
 		} else if packetToTransmit2 != nil {
 			//receiver has newer message than me
-			gossiper.sendPacketToPeer(sourceAddrString, packetToTransmit)
+			gossiper.sendPacketToPeer(sourceAddrString, packetToTransmit2)
 		}
 	}
 }

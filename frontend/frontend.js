@@ -42,8 +42,10 @@
                     for(let i = nBMessages; i < data.length; i++){
                         nBMessages = nBMessages + 1
                         $("#messages").find('tbody').append(
-                            "<tr>" + "<th> FROM " + data[i].Origin + "</th>" +
-                            "<th> Message " + data[i].Text + "</th>" +
+                            "<tr>" + "<th> From " + "<span style=\"font-weight:normal\">" 
+                            + data[i].Origin + "<\span>" + "</th>" +
+                            "<th> Message " + "<span style=\"font-weight:normal\">" +
+                            data[i].Text + "<\span>" + "</th>" +
                             "</tr>"
                         );
                       }
