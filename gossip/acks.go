@@ -9,7 +9,7 @@ import (
 
 type Ack struct {
 	ID         uint32
-	ackChannel chan *util.StatusPacket
+	ackChannel chan util.StatusPacket
 }
 
 type LockAcks struct {
@@ -32,9 +32,9 @@ func (gossiper *Gossiper) InitAcks(peer string, packet *util.GossipPacket) {
 	}
 }
 
-func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan *util.StatusPacket, Ack) {
+func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan util.StatusPacket, Ack) {
 	// Requires a write lock
-	ackChannel := make(chan *util.StatusPacket)
+	ackChannel := make(chan util.StatusPacket)
 	ack := Ack{
 		ID:         packet.Rumor.ID,
 		ackChannel: ackChannel,
@@ -92,7 +92,7 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 	}
 }
 
-func (gossiper *Gossiper) triggerAcks(sP *util.StatusPacket, sourceAddrString string) bool {
+func (gossiper *Gossiper) triggerAcks(sP util.StatusPacket, sourceAddrString string) bool {
 	var isAck = false
 	for _, peerStatus := range sP.Want {
 		origin := peerStatus.Identifier
@@ -110,7 +110,7 @@ func (gossiper *Gossiper) triggerAcks(sP *util.StatusPacket, sourceAddrString st
 	return isAck
 }
 
-func (gossiper *Gossiper) checkSenderNewMessage(sP *util.StatusPacket) *util.GossipPacket {
+func (gossiper *Gossiper) checkSenderNewMessage(sP util.StatusPacket) *util.GossipPacket {
 	var packetToTransmit *util.GossipPacket = nil
 	for origin := range gossiper.lAllMsg.allMsg {
 		peerStatusSender := gossiper.lAllMsg.allMsg[origin]
@@ -143,7 +143,7 @@ func (gossiper *Gossiper) checkSenderNewMessage(sP *util.StatusPacket) *util.Gos
 	return packetToTransmit
 }
 
-func (gossiper *Gossiper) checkReceiverNewMessage(sP *util.StatusPacket) *util.GossipPacket {
+func (gossiper *Gossiper) checkReceiverNewMessage(sP util.StatusPacket) *util.GossipPacket {
 	var packetToTransmit *util.GossipPacket = nil
 	for _, peerStatusReceiver := range sP.Want {
 		_, ok := gossiper.lAllMsg.allMsg[peerStatusReceiver.Identifier]
@@ -159,7 +159,7 @@ func (gossiper *Gossiper) checkReceiverNewMessage(sP *util.StatusPacket) *util.G
 	return packetToTransmit
 }
 
-func (gossiper *Gossiper) compareStatuses(sP *util.StatusPacket) (*util.GossipPacket, *util.GossipPacket) {
+func (gossiper *Gossiper) compareStatuses(sP util.StatusPacket) (*util.GossipPacket, *util.GossipPacket) {
 	var packetToRumormonger *util.GossipPacket = nil
 	var wantedStatusPacket *util.GossipPacket = nil
 	// check if we have received a newer packet

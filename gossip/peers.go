@@ -108,12 +108,12 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 	gossiper.lAcks.mutex.RLock()
 	defer gossiper.lAcks.mutex.RUnlock()
 
-	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(packet.Status)
+	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(*packet.Status)
 	if packetToRumormonger == nil && wantedStatusPacket == nil {
 		fmt.Println("IN SYNC WITH " + sourceAddrString)
 	}
 
-	isAck := gossiper.triggerAcks(packet.Status, sourceAddrString)
+	isAck := gossiper.triggerAcks(*packet.Status, sourceAddrString)
 
 	if !isAck {
 		if packetToRumormonger != nil {
