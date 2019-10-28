@@ -5,20 +5,7 @@ import (
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
 	"net"
-	"sync"
 )
-
-type Ack struct {
-	ID         uint32
-	ackChannel chan util.StatusPacket
-}
-
-type LockAcks struct {
-	// peer(IP:PORT) -> Origine -> Ack
-	acks map[string]map[string][]Ack
-	// Attention always lock lAllMsg first before locking lAcks when we need both
-	mutex sync.RWMutex
-}
 
 /************************************PEERS*****************************************/
 func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) {
@@ -115,37 +102,19 @@ func (gossiper *Gossiper) HandleStatusPacket(packet *util.GossipPacket, sourceAd
 	gossiper.Peers.Mutex.RLock()
 	gossiper.Peers.PrintPeers()
 	gossiper.Peers.Mutex.RUnlock()
-	var isAck = false
 
 	gossiper.lAllMsg.mutex.RLock()
 	defer gossiper.lAllMsg.mutex.RUnlock()
 	gossiper.lAcks.mutex.RLock()
 	defer gossiper.lAcks.mutex.RUnlock()
 
-	var packetToRumormonger *util.GossipPacket
-	var wantedStatusPacket *util.GossipPacket
-	// check if we have received a newer packet
-	packetToRumormonger = gossiper.checkSenderNewMessage(*packet.Status)
-	if packetToRumormonger == nil {
-		// check if receiver has newer message than me
-		wantedStatusPacket = gossiper.checkReceiverNewMessage(*packet.Status)
-		if wantedStatusPacket == nil {
-			fmt.Println("IN SYNC WITH " + sourceAddrString)
-		}
+	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(packet.Status)
+	if packetToRumormonger == nil && wantedStatusPacket == nil {
+		fmt.Println("IN SYNC WITH " + sourceAddrString)
 	}
-	for _, peerStatus := range packet.Status.Want {
-		origin := peerStatus.Identifier
-		// sourceAddr
-		_, ok := gossiper.lAcks.acks[sourceAddrString][origin]
-		if ok {
-			for _, ack := range gossiper.lAcks.acks[sourceAddrString][origin] {
-				if ack.ID < peerStatus.NextID {
-					isAck = true
-					ack.ackChannel <- *packet.Status
-				}
-			}
-		}
-	}
+
+	isAck := gossiper.triggerAcks(packet.Status, sourceAddrString)
+
 	if !isAck {
 		if packetToRumormonger != nil {
 			// we have received a newer packet

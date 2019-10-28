@@ -3,8 +3,21 @@ package gossip
 import (
 	"github.com/dpetresc/Peerster/util"
 	"math/rand"
+	"sync"
 	"time"
 )
+
+type Ack struct {
+	ID         uint32
+	ackChannel chan *util.StatusPacket
+}
+
+type LockAcks struct {
+	// peer(IP:PORT) -> Origine -> Ack
+	acks map[string]map[string][]Ack
+	// Attention always lock lAllMsg first before locking lAcks when we need both
+	mutex sync.RWMutex
+}
 
 func (gossiper *Gossiper) InitAcks(peer string, packet *util.GossipPacket) {
 	gossiper.lAcks.mutex.Lock()
@@ -19,9 +32,9 @@ func (gossiper *Gossiper) InitAcks(peer string, packet *util.GossipPacket) {
 	}
 }
 
-func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan util.StatusPacket, Ack) {
+func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan *util.StatusPacket, Ack) {
 	// Requires a write lock
-	ackChannel := make(chan util.StatusPacket)
+	ackChannel := make(chan *util.StatusPacket)
 	ack := Ack{
 		ID:         packet.Rumor.ID,
 		ackChannel: ackChannel,
@@ -57,21 +70,18 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 	case sP := <-ackChannel:
 		gossiper.lAllMsg.mutex.RLock()
 		gossiper.removeAck(peer, packet, ack)
-		// check if we have received a newer packet
-		packetToRumormonger := gossiper.checkSenderNewMessage(sP)
-		if packetToRumormonger != nil {
-			gossiper.sendRumor(peer, packetToRumormonger, "")
-			gossiper.lAllMsg.mutex.RUnlock()
-			return
-		}
-		// check if receiver has newer message than me
-		wantedStatusPacket := gossiper.checkReceiverNewMessage(sP)
-		if wantedStatusPacket != nil {
-			gossiper.sendPacketToPeer(peer, wantedStatusPacket)
-			gossiper.lAllMsg.mutex.RUnlock()
-			return
-		}
+		packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(sP)
 		gossiper.lAllMsg.mutex.RUnlock()
+
+		if packetToRumormonger != nil {
+			// we have received a newer packet
+			gossiper.sendRumor(peer, packetToRumormonger, "")
+			return
+		} else if wantedStatusPacket != nil {
+			//receiver has newer message than me
+			gossiper.sendPacketToPeer(peer, wantedStatusPacket)
+			return
+		}
 		// flip a coin
 		if rand.Int()%2 == 0 {
 			gossiper.Rumormonger(sourceAddr, packet, true)
@@ -82,7 +92,25 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 	}
 }
 
-func (gossiper *Gossiper) checkSenderNewMessage(sP util.StatusPacket) *util.GossipPacket {
+func (gossiper *Gossiper) triggerAcks(sP *util.StatusPacket, sourceAddrString string) bool {
+	var isAck = false
+	for _, peerStatus := range sP.Want {
+		origin := peerStatus.Identifier
+		// sourceAddr
+		_, ok := gossiper.lAcks.acks[sourceAddrString][origin]
+		if ok {
+			for _, ack := range gossiper.lAcks.acks[sourceAddrString][origin] {
+				if ack.ID < peerStatus.NextID {
+					isAck = true
+					ack.ackChannel <- sP
+				}
+			}
+		}
+	}
+	return isAck
+}
+
+func (gossiper *Gossiper) checkSenderNewMessage(sP *util.StatusPacket) *util.GossipPacket {
 	var packetToTransmit *util.GossipPacket = nil
 	for origin := range gossiper.lAllMsg.allMsg {
 		peerStatusSender := gossiper.lAllMsg.allMsg[origin]
@@ -115,7 +143,7 @@ func (gossiper *Gossiper) checkSenderNewMessage(sP util.StatusPacket) *util.Goss
 	return packetToTransmit
 }
 
-func (gossiper *Gossiper) checkReceiverNewMessage(sP util.StatusPacket) *util.GossipPacket {
+func (gossiper *Gossiper) checkReceiverNewMessage(sP *util.StatusPacket) *util.GossipPacket {
 	var packetToTransmit *util.GossipPacket = nil
 	for _, peerStatusReceiver := range sP.Want {
 		_, ok := gossiper.lAllMsg.allMsg[peerStatusReceiver.Identifier]
@@ -129,4 +157,16 @@ func (gossiper *Gossiper) checkReceiverNewMessage(sP util.StatusPacket) *util.Go
 		}
 	}
 	return packetToTransmit
+}
+
+func (gossiper *Gossiper) compareStatuses(sP *util.StatusPacket) (*util.GossipPacket, *util.GossipPacket) {
+	var packetToRumormonger *util.GossipPacket = nil
+	var wantedStatusPacket *util.GossipPacket = nil
+	// check if we have received a newer packet
+	packetToRumormonger = gossiper.checkSenderNewMessage(sP)
+	if packetToRumormonger == nil {
+		// check if receiver has newer message than me
+		wantedStatusPacket = gossiper.checkReceiverNewMessage(sP)
+	}
+	return packetToRumormonger, wantedStatusPacket
 }
