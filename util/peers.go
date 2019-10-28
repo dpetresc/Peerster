@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync"
 )
 
 var AllMessagesInOrder []RumorMessage = make([]RumorMessage, 0)
 
 type Peers struct {
-	PeersMap *map[string]bool
+	PeersMap map[string]bool
+	Mutex sync.RWMutex
 }
 
 type PeerStatus struct {
@@ -18,8 +20,8 @@ type PeerStatus struct {
 }
 
 type PeerReceivedMessages struct {
-	Peer     PeerStatus
-	Received []*RumorMessage
+	PeerStatus PeerStatus
+	Received   []*RumorMessage
 }
 
 func (peerStatus *PeerStatus) getPeerStatusAsStr() string {
@@ -28,6 +30,7 @@ func (peerStatus *PeerStatus) getPeerStatusAsStr() string {
 }
 
 func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
+	// Requires a write lock
 	var added bool = false
 	if int(id) == (len(p.Received) + 1) {
 		p.Received = append(p.Received, packet.Rumor)
@@ -67,11 +70,11 @@ func (p *PeerReceivedMessages) FindPacketAt(index uint32) *RumorMessage {
 }
 
 func (p *PeerReceivedMessages) GetNextID() uint32 {
-	return p.Peer.NextID
+	return p.PeerStatus.NextID
 }
 
 func (p *PeerReceivedMessages) setNextID(id uint32) {
-	p.Peer.NextID = id
+	p.PeerStatus.NextID = id
 }
 
 func NewPeers(peers string) *Peers {
@@ -86,23 +89,24 @@ func NewPeers(peers string) *Peers {
 		peersMap[peersArray[i]] = true
 	}
 	return &Peers{
-		PeersMap: &peersMap,
+		PeersMap: peersMap,
 	}
 }
 
 func (peers *Peers) AddPeer(addr string) {
-	_, ok := (*peers.PeersMap)[addr]
+	// Requires a write lock
+	_, ok := peers.PeersMap[addr]
 	if !ok {
-		(*peers.PeersMap)[addr] = false
+		peers.PeersMap[addr] = false
 	}
 }
 
 func (peers *Peers) PrintPeers() {
 	var s string = ""
-	if len(*peers.PeersMap) > 0 {
+	if len(peers.PeersMap) > 0 {
 		s += "PEERS "
-		keys := make([]string, 0, len(*peers.PeersMap))
-		for k := range *peers.PeersMap {
+		keys := make([]string, 0, len(peers.PeersMap))
+		for k := range peers.PeersMap {
 			keys = append(keys, k)
 		}
 		for _, peer := range keys[:len(keys)-1] {
@@ -114,10 +118,10 @@ func (peers *Peers) PrintPeers() {
 }
 
 func (peers *Peers) ChooseRandomPeer(sourcePeer string) string {
-	lenMap := len(*peers.PeersMap)
+	lenMap := len(peers.PeersMap)
 	keys := make([]string, 0, lenMap)
 
-	for k := range *peers.PeersMap {
+	for k := range peers.PeersMap {
 		if k != sourcePeer {
 			keys = append(keys, k)
 		}

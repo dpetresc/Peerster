@@ -48,12 +48,12 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "GET":
-		mGossiper.LPeers.Mutex.Lock()
-		peersMap := mGossiper.LPeers.Peers.PeersMap
-		mGossiper.LPeers.Mutex.Unlock()
-		if len(*peersMap) > 0 {
+		mGossiper.Peers.Mutex.Lock()
+		peersMap := mGossiper.Peers.PeersMap
+		mGossiper.Peers.Mutex.Unlock()
+		if len(peersMap) > 0 {
 			peersList := make([]string, 0)
-			for k := range *peersMap {
+			for k := range peersMap {
 				peersList = append(peersList, k)
 			}
 			peerListJson, err := json.Marshal(peersList)
@@ -66,9 +66,9 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		util.CheckError(err)
 		value := r.Form.Get("value")
-		mGossiper.LPeers.Mutex.Lock()
-		mGossiper.LPeers.Peers.AddPeer(value)
-		mGossiper.LPeers.Mutex.Unlock()
+		mGossiper.Peers.Mutex.Lock()
+		mGossiper.Peers.AddPeer(value)
+		mGossiper.Peers.Mutex.Unlock()
 	}
 }
 

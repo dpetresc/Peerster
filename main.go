@@ -4,8 +4,10 @@ import (
 	"flag"
 	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
+	"math/rand"
 	"net/http"
 	"sync"
+	"time"
 )
 
 var uiPort string
@@ -34,7 +36,9 @@ func init() {
 
 func main() {
 	var group sync.WaitGroup
-	group.Add(2)
+	group.Add(3)
+
+	rand.Seed(time.Now().UnixNano())
 
 	clientAddr = "127.0.0.1:" + uiPort
 
@@ -49,6 +53,16 @@ func main() {
 		defer group.Done()
 		mGossiper.ListenPeers()
 	}()
+
+	if !simple && antiEntropy != 0 {
+		// Anti - Entropy
+		// in simple mode you can't receive status packets
+		// antiEntropy = 0 deactivates the entropy
+		defer group.Done()
+		go func() {
+			mGossiper.AntiEntropy()
+		}()
+	}
 
 	if gui {
 		go func() {
