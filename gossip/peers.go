@@ -80,9 +80,6 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 		gossiper.Peers.Mutex.RLock()
 		gossiper.Peers.PrintPeers()
 		gossiper.Peers.Mutex.RUnlock()
-	} else {
-		// TODO enlever ça
-		fmt.Printf("ROUTE RUMOR MESSAGE %d\n",packet.Rumor.ID)
 	}
 
 	gossiper.lAllMsg.mutex.Lock()

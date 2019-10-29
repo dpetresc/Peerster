@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
@@ -128,14 +127,12 @@ func (gossiper *Gossiper) RouteRumors() {
 	packetToSend := gossiper.createNewPacketToSend("", true)
 	peer := gossiper.Peers.ChooseRandomPeer("")
 	if peer != "" {
-		fmt.Println(" SEND ROUTE RUMOR MESSAGE")
 		gossiper.sendPacketToPeer(peer, &packetToSend)
 	}
 
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println(" SEND ROUTE RUMOR MESSAGE")
 			packetToSend := gossiper.createNewPacketToSend("", true)
 			peer := gossiper.Peers.ChooseRandomPeer("")
 			if peer != "" {

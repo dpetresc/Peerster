@@ -1,14 +1,15 @@
 package util
 
 import (
-	"log"
+	"fmt"
 	"net"
 	"strconv"
 )
 
 func CheckError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
+		fmt.Println(err)
 	}
 }
 
