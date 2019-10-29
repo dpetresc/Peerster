@@ -1,7 +1,9 @@
 package gossip
 
 import (
+	"fmt"
 	"github.com/dedis/protobuf"
+	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 	"net"
 	"sync"
@@ -21,15 +23,17 @@ type Gossiper struct {
 	// change to sync
 	Peers       *util.Peers
 	simple      bool
-	antiEntropy uint
+	antiEntropy int
+	rtimer      int
 	ClientAddr  *net.UDPAddr
 	ClientConn  *net.UDPConn
 	lAllMsg     *LockAllMsg
 	lAcks       *LockAcks
-	rumorList   []util.RumorMessage
+	// routing
+	LDsdv *routing.LockDsdv
 }
 
-func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy uint) *Gossiper {
+func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -60,6 +64,9 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		mutex: sync.RWMutex{},
 	}
 
+	// routing
+	lDsdv := routing.NewDsdv()
+
 	return &Gossiper{
 		address:     udpAddr,
 		conn:        udpConn,
@@ -67,10 +74,12 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		Peers:       peers,
 		simple:      simple,
 		antiEntropy: antiEntropy,
+		rtimer:      rtimer,
 		ClientAddr:  udpClientAddr,
 		ClientConn:  udpClientConn,
 		lAllMsg:     &lockAllMsg,
 		lAcks:       &lacks,
+		LDsdv:       &lDsdv,
 	}
 }
 
@@ -112,6 +121,44 @@ func (gossiper *Gossiper) AntiEntropy() {
 	}
 }
 
+func (gossiper *Gossiper) RouteRumors() {
+	ticker := time.NewTicker(time.Duration(gossiper.rtimer) * time.Second)
+	defer ticker.Stop()
+
+	packetToSend := gossiper.createNewPacketToSend("", true)
+	peer := gossiper.Peers.ChooseRandomPeer("")
+	if peer != "" {
+		fmt.Println(" SEND ROUTE RUMOR MESSAGE")
+		gossiper.sendPacketToPeer(peer, &packetToSend)
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			fmt.Println(" SEND ROUTE RUMOR MESSAGE")
+			packetToSend := gossiper.createNewPacketToSend("", true)
+			peer := gossiper.Peers.ChooseRandomPeer("")
+			if peer != "" {
+				gossiper.sendPacketToPeer(peer, &packetToSend)
+			}
+		}
+	}
+}
+
+// Either for a client message or for a route rumor message (text="")
+func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) util.GossipPacket {
+	gossiper.lAllMsg.mutex.Lock()
+	id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
+	packetToSend := util.GossipPacket{Rumor: &util.RumorMessage{
+		Origin: gossiper.Name,
+		ID:     id,
+		Text:   text,
+	}}
+	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, routeRumor)
+	gossiper.lAllMsg.mutex.Unlock()
+	return packetToSend
+}
+
 func (gossiper *Gossiper) createStatusPacket() *util.GossipPacket {
 	// Attention must acquire lock before using this method
 	want := make([]util.PeerStatus, 0, len(gossiper.lAllMsg.allMsg))
@@ -128,5 +175,31 @@ func (gossiper *Gossiper) SendStatusPacket(dest string) {
 	statusPacket := gossiper.createStatusPacket()
 	if dest != "" {
 		gossiper.sendPacketToPeer(dest, statusPacket)
+	}
+}
+
+func (gossiper *Gossiper) HandlePrivatePacket(packet *util.GossipPacket) {
+	// TODO vérifier ?
+	if packet.Private.Destination == gossiper.Name {
+		packet.Private.PrintPrivateMessage()
+
+		// FOR THE GUI
+		routing.AddNewPrivateMessageForGUI(packet.Private.Origin, packet.Private)
+	} else {
+		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.Private.Destination)
+		// we have the next hop of this origin
+		if nextHop != "" {
+			hopValue := packet.Private.HopLimit
+			if hopValue > 0 {
+				packetToForward := &util.GossipPacket{Private: &util.PrivateMessage{
+					Origin: packet.Private.Origin,
+					ID: packet.Private.ID,
+					Text: packet.Private.Text,
+					Destination: packet.Private.Destination,
+					HopLimit: hopValue - 1,
+				}}
+				gossiper.sendPacketToPeer(nextHop, packetToForward)
+			}
+		}
 	}
 }

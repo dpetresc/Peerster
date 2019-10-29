@@ -25,18 +25,26 @@
         <input  type="text" id="sendNode" placeholder="Add a new peer here (IP:PORT)" class="form-control"/>
 
         <button onclick="sendMessage()" class="btn btn-default" id="addMessage">Send Message</Button>
-        <input  type="text" id="sendMessage" placeholder="Type your message here" class="form-control"/>
+        <input  type="text" id="sendMessage" placeholder="Type your public message here" class="form-control"/>
 
         <h3 id="knownPeers" style="visibility: hidden">Known Peers</h3>
         <ul id="peers" style="width:100%">
         </ul>
 
-        <h3 id="chat" style="visibility: hidden">Chat</h3>
-        <table id="messages" style="font-weight:normal">
-            <tr>
-              
-            </tr>
-        </table>
+        <h3 id="knownIds" style="visibility: hidden">Known Identifiers</h3>
+        <ul id="ids" style="width:100%">
+        </ul>
+
+        <h3 id="chat">Public Chat</h3>
+        <div id="chat_table">
+            <div id="public">
+                <table id="public_messages" style="font-weight:normal;visibility: visible"">
+                    <tbody></tbody>
+                </table>
+            </div>
+            <!--<div id="private_x" style="visibility: hidden"></div>-->
+        </div>
+        
         
                         
     </body>

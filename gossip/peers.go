@@ -43,6 +43,8 @@ func (gossiper *Gossiper) ListenPeers() {
 			go gossiper.HandleRumorPacket(packet, sourceAddr)
 		} else if packet.Status != nil {
 			go gossiper.HandleStatusPacket(packet, sourceAddr)
+		} else if packet.Private != nil {
+			go gossiper.HandlePrivatePacket(packet)
 		} else {
 			//log.Fatal("Packet contains neither Status nor Rumor and gossiper wasn't used with simple flag !")
 		}
@@ -67,10 +69,22 @@ func (gossiper *Gossiper) HandleSimplePacket(packet *util.GossipPacket) {
 
 func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAddr *net.UDPAddr) {
 	sourceAddrString := util.UDPAddrToString(sourceAddr)
-	packet.Rumor.PrintRumorMessage(sourceAddrString)
-	gossiper.Peers.Mutex.RLock()
-	gossiper.Peers.PrintPeers()
-	gossiper.Peers.Mutex.RUnlock()
+
+	routeRumor := packet.Rumor.Text == ""
+
+	if !routeRumor {
+		// not a ​route rumor message
+		packet.Rumor.PrintRumorMessage(sourceAddrString)
+
+		// TODO vérifier est-ce que je dois print les peers meme si c'est un route rumor message ?
+		gossiper.Peers.Mutex.RLock()
+		gossiper.Peers.PrintPeers()
+		gossiper.Peers.Mutex.RUnlock()
+	} else {
+		// TODO enlever ça
+		fmt.Printf("ROUTE RUMOR MESSAGE %d\n",packet.Rumor.ID)
+	}
+
 	gossiper.lAllMsg.mutex.Lock()
 	origin := packet.Rumor.Origin
 	_, ok := gossiper.lAllMsg.allMsg[origin]
@@ -82,17 +96,21 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 			Received: nil,
 		}
 	}
+	// TODO vérifier je stocke pas mes propres messages obviously
+	if origin != gossiper.Name {
+		gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID)
+	}
+
 	if gossiper.lAllMsg.allMsg[origin].GetNextID() <= packet.Rumor.ID {
-		gossiper.lAllMsg.allMsg[origin].AddMessage(packet, packet.Rumor.ID)
+		gossiper.lAllMsg.allMsg[origin].AddMessage(packet, packet.Rumor.ID, routeRumor)
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
 		// send a copy of packet to random neighbor - can not send to the source of the message
 		gossiper.Rumormonger(sourceAddrString, packet, false)
-
 	} else {
+		// message already seen - still need to ack
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
-		// message already seen - still need to ack
 	}
 }
 

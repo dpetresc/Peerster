@@ -8,12 +8,14 @@ import (
 )
 
 var uiPort string
+var dest string
 var msg string
 
 var clientAddrStr string
 
 func main() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the command line interface")
+	flag.StringVar(&dest, "dest", "", "destination for the private message")
 	flag.StringVar(&msg, "msg", "", "message to be send")
 
 	flag.Parse()
@@ -22,6 +24,7 @@ func main() {
 
 	packetToSend := util.Message{
 		Text: msg,
+		Destination: &dest,
 	}
 	packetByte, err := protobuf.Encode(&packetToSend)
 	util.CheckError(err)

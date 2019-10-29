@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-var AllMessagesInOrder []RumorMessage = make([]RumorMessage, 0)
+var LastMessagesInOrder []*RumorMessage = make([]*RumorMessage, 0)
 
 type Peers struct {
 	PeersMap map[string]bool
@@ -24,12 +24,12 @@ type PeerReceivedMessages struct {
 	Received   []*RumorMessage
 }
 
-func (peerStatus *PeerStatus) getPeerStatusAsStr() string {
+func (peerStatus *PeerStatus) GetPeerStatusAsStr() string {
 
 	return fmt.Sprintf("peer %s nextID %d", peerStatus.Identifier, peerStatus.NextID)
 }
 
-func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
+func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32, routeRumor bool) {
 	// Requires a write lock
 	var added bool = false
 	if int(id) == (len(p.Received) + 1) {
@@ -48,8 +48,10 @@ func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32) {
 		p.Received = append(p.Received, packet.Rumor)
 		added = true
 	}
-	if added {
-		AllMessagesInOrder = append(AllMessagesInOrder, *packet.Rumor)
+	// check if a new message was added
+	// don't add route rumor messages so that they won't be display in the gui
+	if added  && !routeRumor {
+		LastMessagesInOrder = append(LastMessagesInOrder, packet.Rumor)
 	}
 	p.setNextID(p.findNextID())
 }

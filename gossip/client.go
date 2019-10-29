@@ -2,8 +2,11 @@ package gossip
 
 import (
 	"github.com/dedis/protobuf"
+	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 )
+
+var hopLimit uint32 = 10
 
 /************************************CLIENT*****************************************/
 func (gossiper *Gossiper) readClientPacket() *util.Message {
@@ -37,15 +40,23 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 		}}
 		gossiper.sendPacketToPeers("", &packetToSend)
 	} else {
-		gossiper.lAllMsg.mutex.Lock()
-		id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
-		packetToSend := util.GossipPacket{Rumor: &util.RumorMessage{
-			Origin: gossiper.Name,
-			ID:     id,
-			Text:   packet.Text,
-		}}
-		gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id)
-		gossiper.lAllMsg.mutex.Unlock()
-		go gossiper.Rumormonger("", &packetToSend, false)
+		// TODO est-ce que t'es obligé de ne pas être en simple pour les rumeurs ?
+		if *packet.Destination != "" {
+			// private message
+			packetToSend := &util.GossipPacket{Private: &util.PrivateMessage{
+				Origin: gossiper.Name,
+				ID: 0,
+				Text: packet.Text,
+				Destination: *packet.Destination,
+				HopLimit: hopLimit,
+			}}
+			gossiper.HandlePrivatePacket(packetToSend)
+
+			// FOR THE GUI
+			routing.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
+		} else {
+			packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
+			go gossiper.Rumormonger("", &packetToSend, false)
+		}
 	}
 }

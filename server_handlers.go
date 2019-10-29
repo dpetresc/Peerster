@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/dedis/protobuf"
+	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
 )
@@ -11,7 +12,7 @@ func RumorMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "GET":
-		msgList := util.AllMessagesInOrder
+		msgList := util.LastMessagesInOrder
 		if len(msgList) > 0 {
 			msgListJson, err := json.Marshal(msgList)
 			util.CheckError(err)
@@ -19,17 +20,39 @@ func RumorMessagesHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(msgListJson)
+			util.LastMessagesInOrder = make([]*util.RumorMessage, 0)
 		}
 	case "POST" :
 		err := r.ParseForm()
 		util.CheckError(err)
 		messageText := r.Form.Get("value")
+		dest := r.Form.Get("identifier")
+		if dest == "public" {
+			dest = ""
+		}
 		message := util.Message{
 			Text:      messageText,
+			Destination: &dest,
 		}
 		packetBytes, err := protobuf.Encode(&message)
 		util.CheckError(err)
 		mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+	}
+}
+
+func IdentifiersHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "GET":
+		originList := mGossiper.LDsdv.Origins
+		if len(originList) > 0 {
+			msgListJson, err := json.Marshal(originList)
+			util.CheckError(err)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(msgListJson)
+		}
 	}
 }
 
@@ -50,7 +73,6 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		mGossiper.Peers.Mutex.Lock()
 		peersMap := mGossiper.Peers.PeersMap
-		mGossiper.Peers.Mutex.Unlock()
 		if len(peersMap) > 0 {
 			peersList := make([]string, 0)
 			for k := range peersMap {
@@ -62,6 +84,7 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(peerListJson)
 		}
+		mGossiper.Peers.Mutex.Unlock()
 	case "POST" :
 		err := r.ParseForm()
 		util.CheckError(err)
@@ -69,6 +92,23 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 		mGossiper.Peers.Mutex.Lock()
 		mGossiper.Peers.AddPeer(value)
 		mGossiper.Peers.Mutex.Unlock()
+	}
+}
+
+func PrivateMessagesHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "GET":
+		privateMsgs := routing.LastPrivateMessages
+		if len(privateMsgs) > 0 {
+			msgListJson, err := json.Marshal(privateMsgs)
+			util.CheckError(err)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(msgListJson)
+			routing.LastPrivateMessages = make(map[string][]*util.PrivateMessage)
+		}
 	}
 }
 
