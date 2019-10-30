@@ -6,7 +6,6 @@ import (
 	"github.com/dpetresc/Peerster/util"
 	"math/rand"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -37,9 +36,6 @@ func init() {
 }
 
 func main() {
-	var group sync.WaitGroup
-	group.Add(4)
-
 	rand.Seed(time.Now().UnixNano())
 
 	clientAddr = "127.0.0.1:" + uiPort
@@ -47,20 +43,13 @@ func main() {
 	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy, rtimer)
 
 	go func() {
-		defer group.Done()
 		mGossiper.ListenClient()
-	}()
-
-	go func() {
-		defer group.Done()
-		mGossiper.ListenPeers()
 	}()
 
 	if !simple && antiEntropy != 0 {
 		// Anti - Entropy
 		// in simple mode you can't receive status packets
 		// antiEntropy = 0 deactivates the entropy
-		defer group.Done()
 		go func() {
 			mGossiper.AntiEntropy()
 		}()
@@ -69,7 +58,6 @@ func main() {
 	if !simple && rtimer != 0 {
 		// Send route rumor
 		// 0 means disabling this feature
-		defer group.Done()
 		go func() {
 			mGossiper.RouteRumors()
 		}()
@@ -89,6 +77,6 @@ func main() {
 			}
 		}()
 	}
-	group.Wait()
 
+	mGossiper.ListenPeers()
 }

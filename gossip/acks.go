@@ -46,7 +46,7 @@ func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan u
 func (gossiper *Gossiper) removeAck(peer string, packet *util.GossipPacket, ack Ack) {
 	// Requires a write lock
 	gossiper.lAcks.mutex.Lock()
-	newAcks := make([]Ack, 0)
+	newAcks := make([]Ack, 0, len(gossiper.lAcks.acks[peer][packet.Rumor.Origin])-1)
 	for _, ackElem := range gossiper.lAcks.acks[peer][packet.Rumor.Origin] {
 		if ackElem != ack {
 			newAcks = append(newAcks, ackElem)
@@ -82,13 +82,14 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 			gossiper.sendPacketToPeer(peer, wantedStatusPacket)
 			return
 		}
+
 		// flip a coin
 		if rand.Int()%2 == 0 {
 			gossiper.Rumormonger(sourceAddr, packet, true)
 		}
 	case <-ticker.C:
+		gossiper.Rumormonger("", packet, false)
 		gossiper.removeAck(peer, packet, ack)
-		gossiper.Rumormonger(sourceAddr, packet, false)
 	}
 }
 

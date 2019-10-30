@@ -56,7 +56,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 			routing.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
 		} else {
 			packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
-			go gossiper.Rumormonger("", &packetToSend, false)
+			gossiper.Rumormonger("", &packetToSend, false)
 		}
 	}
 }

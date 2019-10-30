@@ -189,11 +189,11 @@ func (gossiper *Gossiper) HandlePrivatePacket(packet *util.GossipPacket) {
 			hopValue := packet.Private.HopLimit
 			if hopValue > 0 {
 				packetToForward := &util.GossipPacket{Private: &util.PrivateMessage{
-					Origin: packet.Private.Origin,
-					ID: packet.Private.ID,
-					Text: packet.Private.Text,
+					Origin:      packet.Private.Origin,
+					ID:          packet.Private.ID,
+					Text:        packet.Private.Text,
 					Destination: packet.Private.Destination,
-					HopLimit: hopValue - 1,
+					HopLimit:    hopValue - 1,
 				}}
 				gossiper.sendPacketToPeer(nextHop, packetToForward)
 			}
