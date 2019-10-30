@@ -22,7 +22,7 @@ UIPort=12345
 gossipPort=5000
 name='A'
 
-# General peerster (gossip) command
+# General peerster (gossiper) command
 #./Peerster -UIPort=12345 -gossipAddr=127.0.0.1:5001 -name=A -peers=127.0.0.1:5002 > A.out &
 
 for i in `seq 1 10`;
@@ -50,7 +50,6 @@ sleep 1
 ./client/client -UIPort=12351 -msg=$message_c3
 
 sleep 64
-#sleep 128
 pkill -f Peerster
 
 
@@ -207,7 +206,6 @@ echo -e "${RED}###CHECK flipped coin${NC}"
 gossipPort=5000
 for i in `seq 0 9`;
 do
-#echo "$i"
     relayPort=$(($gossipPort-1))
     if [[ "$relayPort" == 4999 ]] ; then
         relayPort=5009
@@ -218,11 +216,9 @@ do
     msgLine2="FLIPPED COIN sending rumor to 127.0.0.1:$nextPort"
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
-		#echo "$msgLine1" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
-		#echo "$msgLine2" "${outputFiles[$i]}"
         failed="T"
     fi
 	gossipPort=$(($gossipPort+1))

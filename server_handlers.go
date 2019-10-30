@@ -90,7 +90,12 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 		util.CheckError(err)
 		value := r.Form.Get("value")
 		mGossiper.Peers.Mutex.Lock()
-		mGossiper.Peers.AddPeer(value)
+		// can't add my address to the peers
+		if value != util.UDPAddrToString(mGossiper.Address){
+			mGossiper.Peers.AddPeer(value)
+		} else {
+			http.Error(w, "Can't add own address as Peer !", http.StatusUnauthorized)
+		}
 		mGossiper.Peers.Mutex.Unlock()
 	}
 }

@@ -11,11 +11,11 @@ import (
 func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) {
 	connection := gossiper.conn
 	var packet util.GossipPacket
-	packetBytes := make([]byte, 2048)
+	packetBytes := make([]byte, MaxUDPSize)
 	n, sourceAddr, err := connection.ReadFromUDP(packetBytes)
 	// In case simple flag is set, we add manually the RelayPeerAddr of the packets afterwards
 	if !gossiper.simple {
-		if sourceAddr != gossiper.address {
+		if sourceAddr != gossiper.Address {
 			gossiper.Peers.Mutex.Lock()
 			gossiper.Peers.AddPeer(util.UDPAddrToString(sourceAddr))
 			gossiper.Peers.Mutex.Unlock()
@@ -54,14 +54,14 @@ func (gossiper *Gossiper) ListenPeers() {
 func (gossiper *Gossiper) HandleSimplePacket(packet *util.GossipPacket) {
 	packet.Simple.PrintSimpleMessage()
 	gossiper.Peers.Mutex.Lock()
-	if packet.Simple.RelayPeerAddr != util.UDPAddrToString(gossiper.address) {
+	if packet.Simple.RelayPeerAddr != util.UDPAddrToString(gossiper.Address) {
 		gossiper.Peers.AddPeer(packet.Simple.RelayPeerAddr)
 	}
 	gossiper.Peers.PrintPeers()
 	gossiper.Peers.Mutex.Unlock()
 	packetToSend := util.GossipPacket{Simple: &util.SimpleMessage{
 		OriginalName:  packet.Simple.OriginalName,
-		RelayPeerAddr: util.UDPAddrToString(gossiper.address),
+		RelayPeerAddr: util.UDPAddrToString(gossiper.Address),
 		Contents:      packet.Simple.Contents,
 	}}
 	gossiper.sendPacketToPeers(packet.Simple.RelayPeerAddr, &packetToSend)
@@ -72,15 +72,12 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 
 	routeRumor := packet.Rumor.Text == ""
 
-	if !routeRumor {
-		// not a ​route rumor message
-		packet.Rumor.PrintRumorMessage(sourceAddrString)
+	packet.Rumor.PrintRumorMessage(sourceAddrString)
 
-		// TODO vérifier est-ce que je dois print les peers meme si c'est un route rumor message ?
-		gossiper.Peers.Mutex.RLock()
-		gossiper.Peers.PrintPeers()
-		gossiper.Peers.Mutex.RUnlock()
-	}
+	// TODO vérifier est-ce que je dois print les peers meme si c'est un route rumor message ?
+	gossiper.Peers.Mutex.RLock()
+	gossiper.Peers.PrintPeers()
+	gossiper.Peers.Mutex.RUnlock()
 
 	gossiper.lAllMsg.mutex.Lock()
 	origin := packet.Rumor.Origin
@@ -95,7 +92,7 @@ func (gossiper *Gossiper) HandleRumorPacket(packet *util.GossipPacket, sourceAdd
 	}
 	// TODO vérifier je stocke pas mes propres messages obviously
 	if origin != gossiper.Name {
-		gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID)
+		gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID, routeRumor)
 	}
 
 	if gossiper.lAllMsg.allMsg[origin].GetNextID() <= packet.Rumor.ID {

@@ -28,6 +28,8 @@ type GossipPacket struct {
 	Rumor *RumorMessage
 	Status *StatusPacket
 	Private *PrivateMessage
+	DataRequest *DataRequest
+	DataReply *DataReply
 }
 
 /******************** SIMPLE MESSAGE ********************/
@@ -84,4 +86,21 @@ type PrivateMessage struct {
 func (peerMessage *PrivateMessage) PrintPrivateMessage() {
 	fmt.Printf("PRIVATE origin %s hop-limit %d contents %s\n", peerMessage.Origin,
 		peerMessage.HopLimit, peerMessage.Text)
+}
+
+/******************** CHUNK AND METAFILE REQUESTS ********************/
+type DataRequest struct {
+	Origin string
+	Destination string
+	HopLimit uint32
+	HashValue []byte
+}
+
+/******************** CHUNK AND METAFILE REPLIES ********************/
+type DataReply struct {
+	Origin string
+	Destination string
+	HopLimit uint32
+	HashValue []byte
+	Data []byte
 }

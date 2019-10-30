@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"sync"
 )
@@ -43,12 +44,15 @@ func (l *LockDsdv) getLastIDOrigin(origin string) uint32 {
 	return 0
 }
 
-func (l *LockDsdv) UpdateOrigin(origin string, peer string, id uint32) {
+func (l *LockDsdv) UpdateOrigin(origin string, peer string, id uint32, routeRumor bool) {
 	l.Mutex.Lock()
 	idOrigin := l.getLastIDOrigin(origin)
 	if id > idOrigin {
 		if idOrigin == 0 {
 			l.Origins = append(l.Origins, origin)
+		}
+		if !routeRumor {
+			fmt.Printf("DSDV %s %s", origin, peer)
 		}
 		l.Dsdv[origin] = peer
 		l.LastIds[origin] = id

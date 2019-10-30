@@ -6,13 +6,11 @@ import (
 	"github.com/dpetresc/Peerster/util"
 )
 
-var hopLimit uint32 = 10
-
 /************************************CLIENT*****************************************/
 func (gossiper *Gossiper) readClientPacket() *util.Message {
 	connection := gossiper.ClientConn
 	var packet util.Message
-	packetBytes := make([]byte, 2048)
+	packetBytes := make([]byte, MaxUDPSize)
 	n, _, err := connection.ReadFromUDP(packetBytes)
 	util.CheckError(err)
 	errDecode := protobuf.Decode(packetBytes[:n], &packet)
@@ -32,10 +30,10 @@ func (gossiper *Gossiper) ListenClient() {
 func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 	if gossiper.simple {
 		// the OriginalName of the message to its own Name
-		// sets relay peer to its own address
+		// sets relay peer to its own Address
 		packetToSend := util.GossipPacket{Simple: &util.SimpleMessage{
 			OriginalName:  gossiper.Name,
-			RelayPeerAddr: util.UDPAddrToString(gossiper.address),
+			RelayPeerAddr: util.UDPAddrToString(gossiper.Address),
 			Contents:      packet.Text,
 		}}
 		gossiper.sendPacketToPeers("", &packetToSend)

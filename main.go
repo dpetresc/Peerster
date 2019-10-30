@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/dpetresc/Peerster/file"
 	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
 	"math/rand"
@@ -39,6 +40,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	clientAddr = "127.0.0.1:" + uiPort
+	file.InitFileFolderPath()
 
 	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy, rtimer)
 
@@ -77,6 +79,14 @@ func main() {
 			}
 		}()
 	}
+
+	// TODO gérer erreur (log.fatal => print)
+	// TODO checker tous les make (length et capacité)
+
+
+	// TODO remove
+	test := file.IndexFile("test.gif")
+	defer test.Metafile.Close()
 
 	mGossiper.ListenPeers()
 }

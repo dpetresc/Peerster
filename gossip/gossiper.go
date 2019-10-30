@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+var hopLimit uint32 = 10
+var MaxUDPSize int = 8192
+
 type LockAllMsg struct {
 	allMsg map[string]*util.PeerReceivedMessages
 	// Attention always lock lAllMsg first before locking lAcks when we need both
@@ -16,7 +19,7 @@ type LockAllMsg struct {
 }
 
 type Gossiper struct {
-	address *net.UDPAddr
+	Address *net.UDPAddr
 	conn    *net.UDPConn
 	Name    string
 	// change to sync
@@ -67,7 +70,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	lDsdv := routing.NewDsdv()
 
 	return &Gossiper{
-		address:     udpAddr,
+		Address:     udpAddr,
 		conn:        udpConn,
 		Name:        name,
 		Peers:       peers,
@@ -125,19 +128,25 @@ func (gossiper *Gossiper) RouteRumors() {
 	defer ticker.Stop()
 
 	packetToSend := gossiper.createNewPacketToSend("", true)
-	peer := gossiper.Peers.ChooseRandomPeer("")
+	gossiper.Rumormonger("", &packetToSend, false)
+	// TODO vérifier rumonger ???
+	/*peer := gossiper.Peers.ChooseRandomPeer("")
 	if peer != "" {
+
 		gossiper.sendPacketToPeer(peer, &packetToSend)
-	}
+
+	}*/
 
 	for {
 		select {
 		case <-ticker.C:
 			packetToSend := gossiper.createNewPacketToSend("", true)
-			peer := gossiper.Peers.ChooseRandomPeer("")
+			gossiper.Rumormonger("", &packetToSend, false)
+			// TODO vérifier rumonger ???
+			/*peer := gossiper.Peers.ChooseRandomPeer("")
 			if peer != "" {
 				gossiper.sendPacketToPeer(peer, &packetToSend)
-			}
+			}*/
 		}
 	}
 }

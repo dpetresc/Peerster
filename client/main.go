@@ -1,24 +1,86 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
+	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
 	"net"
+	"os"
 )
 
 var uiPort string
 var dest string
 var msg string
+var file string
+var request string
 
 var clientAddrStr string
 
-func main() {
+func init() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the command line interface")
 	flag.StringVar(&dest, "dest", "", "destination for the private message")
 	flag.StringVar(&msg, "msg", "", "message to be send")
+	flag.StringVar(&file, "file", "", "file to be indexed by the gossiper")
+	flag.StringVar(&request, "request", "", "​file hexadecimal MetaHash")
 
 	flag.Parse()
+}
+
+func logBadArgumentCombination(){
+	fmt.Println("​ERROR (Bad argument combination)​")
+	os.Exit(1)
+}
+
+func logBadRequestHashFormat(){
+	fmt.Println("ERROR (Unable to decode hex hash)")
+	os.Exit(1)
+}
+
+func isCorrectArgumentCombination() bool{
+	// Flags: dest + msg + file + request
+	// exercise 3 combination: (dest + msg) ou msg
+	if( (dest != "" && msg != "" && file == "" && request == "") ||
+		(dest == "" && msg != "" && file == "" && request == "")){
+		return true
+	}
+	// exercise 4 combination: file
+	if(dest == "" && msg == "" && file != "" && request == ""){
+		return true
+	}
+	// exercise 6 combination: dest + file + request
+	if(dest != "" && msg == "" && file != "" && request != "") {
+		return true
+	}
+	return false
+}
+
+func isCorrectRequestHashFormat() bool{
+	if(request != ""){
+		bytes, err := hex.DecodeString(request)
+		if err != nil {
+			return false
+		}
+		if(len(bytes) != 32){
+			return false
+		}
+	}
+	return true
+}
+
+func checkClientFlags() bool{
+	if(!isCorrectArgumentCombination()){
+		logBadArgumentCombination()
+	}
+	if(!isCorrectRequestHashFormat()){
+		logBadRequestHashFormat()
+	}
+}
+
+func main() {
+	// TODO obliger de préciser le uiport ?? + vérifier
+	checkClientFlags()
 
 	clientAddrStr = "127.0.0.1:" + uiPort
 
@@ -37,5 +99,4 @@ func main() {
 
 	_, err = clientConn.Write(packetByte)
 	util.CheckError(err)
-
 }
