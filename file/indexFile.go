@@ -8,10 +8,8 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 )
 
-var fileFolderPath string
 
 type MyFile struct {
 	fileName string
@@ -20,18 +18,22 @@ type MyFile struct {
 	fileId string
 }
 
-func InitFileFolderPath() {
-	ex, err := os.Executable()
-	util.CheckError(err)
-	fileFolderPath = filepath.Dir(ex) + "/_SharedFiles/"
-}
-
 func getInfoFile(f *os.File) (int64, int) {
 	fileInfo, err := f.Stat()
 	util.CheckError(err)
 	fileSizeBytes := fileInfo.Size()
 	nbChunks := int(math.Ceil(float64(fileSizeBytes) / float64(gossip.MaxUDPSize)))
 	return fileSizeBytes, nbChunks
+}
+
+// Used to either record a chunk of a file or it's metafile
+func writeFileToArchive(fileName string, hashes []byte) *os.File {
+	path := util.ChunksFolderPath + fileName + ".bin"
+	metafile, err := os.Create(path)
+	util.CheckError(err)
+	_, err3 := metafile.Write(hashes)
+	util.CheckError(err3)
+	return metafile
 }
 
 func createHashes(f *os.File) (int64, []byte) {
@@ -45,30 +47,23 @@ func createHashes(f *os.File) (int64, []byte) {
 			util.CheckError(err)
 		} else {
 			sha := sha256.Sum256(chunk[:n])
+			fileName := hex.EncodeToString(sha[:])
+			writeFileToArchive(fileName, chunk[:n])
 			hashes = append(hashes, sha[:]...)
 		}
 	}
 	return fileSizeBytes, hashes
 }
 
-func writeBinaryFile(fileName string, err error, hashes []byte) (string, *os.File) {
-	fileIdBytes := sha256.Sum256(hashes)
-	fileId := hex.EncodeToString(fileIdBytes[:])
-	binaryPath := fileFolderPath + fileId + ".bin"
-	metafile, err := os.Create(binaryPath)
-	util.CheckError(err)
-	_, err3 := metafile.Write(hashes)
-	util.CheckError(err3)
-	return fileId, metafile
-}
-
 func IndexFile(fileName string) *MyFile {
-	f, err := os.Open(fileFolderPath + fileName)
+	f, err := os.Open(util.SharedFilesFolderPath + fileName)
 	util.CheckError(err)
 	defer f.Close()
 	fileSizeBytes, hashes := createHashes(f)
 
-	fileId, metafile := writeBinaryFile(fileName, err, hashes)
+	fileIdBytes := sha256.Sum256(hashes)
+	fileId := hex.EncodeToString(fileIdBytes[:])
+	metafile := writeFileToArchive(fileId, hashes)
 	return &MyFile{
 		fileName: fileName,
 		fileSize: fileSizeBytes,

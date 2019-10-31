@@ -128,7 +128,7 @@ func (gossiper *Gossiper) RouteRumors() {
 	defer ticker.Stop()
 
 	packetToSend := gossiper.createNewPacketToSend("", true)
-	gossiper.Rumormonger("", &packetToSend, false)
+	gossiper.rumormonger("", &packetToSend, false)
 	// TODO vérifier rumonger ???
 	/*peer := gossiper.Peers.ChooseRandomPeer("")
 	if peer != "" {
@@ -136,12 +136,11 @@ func (gossiper *Gossiper) RouteRumors() {
 		gossiper.sendPacketToPeer(peer, &packetToSend)
 
 	}*/
-
 	for {
 		select {
 		case <-ticker.C:
 			packetToSend := gossiper.createNewPacketToSend("", true)
-			gossiper.Rumormonger("", &packetToSend, false)
+			gossiper.rumormonger("", &packetToSend, false)
 			// TODO vérifier rumonger ???
 			/*peer := gossiper.Peers.ChooseRandomPeer("")
 			if peer != "" {
@@ -152,6 +151,7 @@ func (gossiper *Gossiper) RouteRumors() {
 }
 
 // Either for a client message or for a route rumor message (text="")
+// also called in clientListener
 func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) util.GossipPacket {
 	gossiper.lAllMsg.mutex.Lock()
 	id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
@@ -163,49 +163,4 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, routeRumor)
 	gossiper.lAllMsg.mutex.Unlock()
 	return packetToSend
-}
-
-func (gossiper *Gossiper) createStatusPacket() *util.GossipPacket {
-	// Attention must acquire lock before using this method
-	want := make([]util.PeerStatus, 0, len(gossiper.lAllMsg.allMsg))
-	for _, peerRcvMsg := range gossiper.lAllMsg.allMsg {
-		want = append(want, peerRcvMsg.PeerStatus)
-	}
-	return &util.GossipPacket{Status: &util.StatusPacket{
-		Want: want,
-	}}
-}
-
-func (gossiper *Gossiper) SendStatusPacket(dest string) {
-	// Attention must acquire lock before using this method
-	statusPacket := gossiper.createStatusPacket()
-	if dest != "" {
-		gossiper.sendPacketToPeer(dest, statusPacket)
-	}
-}
-
-func (gossiper *Gossiper) HandlePrivatePacket(packet *util.GossipPacket) {
-	// TODO vérifier ?
-	if packet.Private.Destination == gossiper.Name {
-		packet.Private.PrintPrivateMessage()
-
-		// FOR THE GUI
-		routing.AddNewPrivateMessageForGUI(packet.Private.Origin, packet.Private)
-	} else {
-		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.Private.Destination)
-		// we have the next hop of this origin
-		if nextHop != "" {
-			hopValue := packet.Private.HopLimit
-			if hopValue > 0 {
-				packetToForward := &util.GossipPacket{Private: &util.PrivateMessage{
-					Origin:      packet.Private.Origin,
-					ID:          packet.Private.ID,
-					Text:        packet.Private.Text,
-					Destination: packet.Private.Destination,
-					HopLimit:    hopValue - 1,
-				}}
-				gossiper.sendPacketToPeer(nextHop, packetToForward)
-			}
-		}
-	}
 }

@@ -85,10 +85,10 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 
 		// flip a coin
 		if rand.Int()%2 == 0 {
-			gossiper.Rumormonger(sourceAddr, packet, true)
+			gossiper.rumormonger(sourceAddr, packet, true)
 		}
 	case <-ticker.C:
-		gossiper.Rumormonger("", packet, false)
+		gossiper.rumormonger("", packet, false)
 		gossiper.removeAck(peer, packet, ack)
 	}
 }

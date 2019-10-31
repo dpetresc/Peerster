@@ -41,35 +41,35 @@ func logBadRequestHashFormat(){
 func isCorrectArgumentCombination() bool{
 	// Flags: dest + msg + file + request
 	// exercise 3 combination: (dest + msg) ou msg
-	if( (dest != "" && msg != "" && file == "" && request == "") ||
-		(dest == "" && msg != "" && file == "" && request == "")){
+	if (dest != "" && msg != "" && file == "" && request == "") ||
+		(dest == "" && msg != "" && file == "" && request == ""){
 		return true
 	}
 	// exercise 4 combination: file
-	if(dest == "" && msg == "" && file != "" && request == ""){
+	if dest == "" && msg == "" && file != "" && request == ""{
 		return true
 	}
 	// exercise 6 combination: dest + file + request
-	if(dest != "" && msg == "" && file != "" && request != "") {
+	if dest != "" && msg == "" && file != "" && request != ""{
 		return true
 	}
 	return false
 }
 
 func isCorrectRequestHashFormat() bool{
-	if(request != ""){
+	if request != ""{
 		bytes, err := hex.DecodeString(request)
 		if err != nil {
 			return false
 		}
-		if(len(bytes) != 32){
+		if len(bytes) != 32{
 			return false
 		}
 	}
 	return true
 }
 
-func checkClientFlags() bool{
+func checkClientFlags() {
 	if(!isCorrectArgumentCombination()){
 		logBadArgumentCombination()
 	}
@@ -84,9 +84,13 @@ func main() {
 
 	clientAddrStr = "127.0.0.1:" + uiPort
 
+	requestBytes, _ := hex.DecodeString(request)
+
 	packetToSend := util.Message{
 		Text: msg,
 		Destination: &dest,
+		File: &file,
+		Request: &requestBytes,
 	}
 	packetByte, err := protobuf.Encode(&packetToSend)
 	util.CheckError(err)
