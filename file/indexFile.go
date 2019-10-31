@@ -3,7 +3,6 @@ package file
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
 	"io"
 	"math"
@@ -22,7 +21,7 @@ func getInfoFile(f *os.File) (int64, int) {
 	fileInfo, err := f.Stat()
 	util.CheckError(err)
 	fileSizeBytes := fileInfo.Size()
-	nbChunks := int(math.Ceil(float64(fileSizeBytes) / float64(gossip.MaxUDPSize)))
+	nbChunks := int(math.Ceil(float64(fileSizeBytes) / float64(util.MaxUDPSize)))
 	return fileSizeBytes, nbChunks
 }
 
@@ -39,9 +38,9 @@ func writeFileToArchive(fileName string, hashes []byte) *os.File {
 func createHashes(f *os.File) (int64, []byte) {
 	fileSizeBytes, nbChunks := getInfoFile(f)
 
-	chunk := make([]byte, gossip.MaxUDPSize)
+	chunk := make([]byte, util.MaxUDPSize)
 	hashes := make([]byte, 0, 32*nbChunks)
-	for i := int64(0); i < fileSizeBytes; i += int64(gossip.MaxUDPSize) {
+	for i := int64(0); i < fileSizeBytes; i += int64(util.MaxUDPSize) {
 		n, err := f.ReadAt(chunk, int64(i))
 		if err != nil && err != io.EOF {
 			util.CheckError(err)

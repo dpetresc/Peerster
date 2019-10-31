@@ -50,7 +50,7 @@ func (gossiper *Gossiper) sendRequestedChunk(packet *util.GossipPacket) {
 	dataReply := &util.GossipPacket{DataReply: &util.DataReply{
 		Origin:      gossiper.Name,
 		Destination: packet.DataRequest.Origin,
-		HopLimit:    hopLimit,
+		HopLimit:    util.HopLimit,
 		HashValue:   hashValue,
 		Data:        data,
 	}}

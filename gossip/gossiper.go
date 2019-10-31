@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-var hopLimit uint32 = 10
-var MaxUDPSize int = 8192
-
 type LockAllMsg struct {
 	allMsg map[string]*util.PeerReceivedMessages
 	// Attention always lock lAllMsg first before locking lAcks when we need both

@@ -11,7 +11,7 @@ import (
 func (gossiper *Gossiper) readClientPacket() *util.Message {
 	connection := gossiper.ClientConn
 	var packet util.Message
-	packetBytes := make([]byte, MaxUDPSize)
+	packetBytes := make([]byte, util.MaxUDPSize)
 	n, _, err := connection.ReadFromUDP(packetBytes)
 	util.CheckError(err)
 	errDecode := protobuf.Decode(packetBytes[:n], &packet)
@@ -49,7 +49,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 					ID: 0,
 					Text: packet.Text,
 					Destination: *packet.Destination,
-					HopLimit: hopLimit,
+					HopLimit: util.HopLimit,
 				}}
 				go gossiper.handlePrivatePacket(packetToSend)
 
@@ -67,7 +67,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 			packetToSend := &util.GossipPacket{DataRequest: &util.DataRequest{
 				Origin:      gossiper.Name,
 				Destination: *packet.Destination,
-				HopLimit:    hopLimit,
+				HopLimit:    util.HopLimit,
 				HashValue:   *packet.Request,
 			}}
 			go gossiper.handleDataRequestPacket(packetToSend)
