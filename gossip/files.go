@@ -195,7 +195,8 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 						// successful download
 						failedAttempt = 0
 
-						util.WriteFileToArchive(hashToTest, data)
+						file := util.WriteFileToArchive(hashToTest, data)
+						file.Close()
 
 						if isMetaFile {
 							gossiper.initFileCurrentStat(currChunkIdentifier, data)
@@ -292,4 +293,6 @@ func (gossiper *Gossiper) reconstructFile(metahash string, fileName string, chun
 		gossiper.lDownloadedFiles.downloads[metahash] = true
 		gossiper.lDownloadedFiles.mutex.Unlock()
 	}
+	err = file.Close()
+	util.CheckError(err)
 }
