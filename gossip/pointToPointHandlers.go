@@ -95,7 +95,7 @@ func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 			responseChan := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
 			responseChan <- *packet.DataReply
 		}
-		gossiper.lCurrentDownloads.mutex.Unlock()
+		gossiper.lDownloadingChunk.mutex.Unlock()
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.DataReply.Destination)
 		// we have the next hop of this origin

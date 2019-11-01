@@ -78,9 +78,9 @@ func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier,
 		HashValue:   hashBytes,
 	}}
 	if isMetaFile {
-		fmt.Printf("DOWNLOADING metafile of %s from %s\n", packet.File, packet.Destination)
+		fmt.Printf("DOWNLOADING metafile of %s from %s\n", *packet.File, *packet.Destination)
 	} else {
-		fmt.Println("DOWNLOADING %s chunk %d from %s\n", packet.File, chunkNumber,packet.Destination)
+		fmt.Println("DOWNLOADING %s chunk %d from %s\n", *packet.File, chunkNumber, *packet.Destination)
 	}
 	go gossiper.handleDataRequestPacket(packetToSend)
 	return waitingChan
@@ -180,13 +180,11 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 					hash: currHash,
 				}
 			}
-
 			// check if we already have this chunk from another download
 			if !gossiper.isChunkAlreadyDownloaded(currHash) {
 				// we have to download the chunk
 				waitingChan = gossiper.initWaitingChannel(currChunkIdentifier, currHashByte, currChunkNumber,
 					packet, isMetaFile)
-
 				ticker := time.NewTicker(5 * time.Second)
 				select {
 				case dataReply := <-waitingChan:
@@ -207,6 +205,11 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 								fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 								gossiper.reconstructFile(metahash, *packet.File, fileCurrentStat.chunkHashes)
 								gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
+
+								// remove from current downloading list
+								gossiper.lCurrentDownloads.mutex.Lock()
+								delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
+								gossiper.lCurrentDownloads.mutex.Unlock()
 								return
 							}
 						}
@@ -217,7 +220,13 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 						// if it is corrupted we try again (max 5 times)
 						failedAttempt = failedAttempt + 1
 						if len(dataReply.Data) == 0 || failedAttempt >= 4{
+							// finish download
 							gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
+
+							// remove from current downloading list
+							gossiper.lCurrentDownloads.mutex.Lock()
+							delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
+							gossiper.lCurrentDownloads.mutex.Unlock()
 							return
 						}
 					}
@@ -236,6 +245,11 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 					if int(currChunk) == len(fileCurrentStat.chunkHashes) {
 						fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 						gossiper.reconstructFile(metahash, *packet.File, fileCurrentStat.chunkHashes)
+
+						// remove from current downloading list
+						gossiper.lCurrentDownloads.mutex.Lock()
+						delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
+						gossiper.lCurrentDownloads.mutex.Unlock()
 						return
 					}
 				}
