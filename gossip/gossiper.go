@@ -30,6 +30,10 @@ type Gossiper struct {
 	lAcks       *LockAcks
 	// routing
 	LDsdv *routing.LockDsdv
+	//files
+	lIndexed          *LockIndexedFile
+	lDownloadingChunk lockDownloadingChunks
+	lDownloads        *lockDownload
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
@@ -66,19 +70,36 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	// routing
 	lDsdv := routing.NewDsdv()
 
+	//files
+	lIndexed := LockIndexedFile{
+		IndexedFiles: make(map[string]*MyFile),
+		Mutex:        sync.RWMutex{},
+	}
+	lDownloadingChunk := lockDownloadingChunks{
+		currentDownloadingChunks: make(map[string]chan util.DataReply),
+		mutex: sync.Mutex{},
+	}
+	lDownloads := &lockDownload{
+		currentDownloads: make(map[string]*fileCurrentDownloadingStatus),
+		mutex:            sync.RWMutex{},
+	}
+
 	return &Gossiper{
-		Address:     udpAddr,
-		conn:        udpConn,
-		Name:        name,
-		Peers:       peers,
-		simple:      simple,
-		antiEntropy: antiEntropy,
-		rtimer:      rtimer,
-		ClientAddr:  udpClientAddr,
-		ClientConn:  udpClientConn,
-		lAllMsg:     &lockAllMsg,
-		lAcks:       &lacks,
-		LDsdv:       &lDsdv,
+		Address:           udpAddr,
+		conn:              udpConn,
+		Name:              name,
+		Peers:             peers,
+		simple:            simple,
+		antiEntropy:       antiEntropy,
+		rtimer:            rtimer,
+		ClientAddr:        udpClientAddr,
+		ClientConn:        udpClientConn,
+		lAllMsg:           &lockAllMsg,
+		lAcks:             &lacks,
+		LDsdv:             &lDsdv,
+		lIndexed:          &lIndexed,
+		lDownloadingChunk: lDownloadingChunk,
+		lDownloads:        lDownloads,
 	}
 }
 

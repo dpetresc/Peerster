@@ -2,7 +2,6 @@ package gossip
 
 import (
 	"github.com/dedis/protobuf"
-	"github.com/dpetresc/Peerster/file"
 	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 )
@@ -63,17 +62,10 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 			}
 		}else if *packet.Destination != ""{
 			// request file
-			// TODO keep track of the request
-			packetToSend := &util.GossipPacket{DataRequest: &util.DataRequest{
-				Origin:      gossiper.Name,
-				Destination: *packet.Destination,
-				HopLimit:    util.HopLimit,
-				HashValue:   *packet.Request,
-			}}
-			go gossiper.handleDataRequestPacket(packetToSend)
+			go gossiper.startDownload(packet)
 		}else {
 			// index file
-			go file.IndexFile(*packet.File)
+			go gossiper.IndexFile(*packet.File)
 		}
 
 	}

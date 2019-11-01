@@ -1,4 +1,4 @@
-package file
+package gossip
 
 import (
 	"crypto/sha256"
@@ -7,14 +7,19 @@ import (
 	"io"
 	"math"
 	"os"
+	"sync"
 )
 
+type LockIndexedFile struct {
+	IndexedFiles map[string]*MyFile
+	Mutex sync.RWMutex
+}
 
 type MyFile struct {
 	fileName string
 	fileSize int64
 	Metafile *os.File
-	fileId string
+	metahash string
 }
 
 func getInfoFile(f *os.File) (int64, int) {
@@ -23,16 +28,6 @@ func getInfoFile(f *os.File) (int64, int) {
 	fileSizeBytes := fileInfo.Size()
 	nbChunks := int(math.Ceil(float64(fileSizeBytes) / float64(util.MaxUDPSize)))
 	return fileSizeBytes, nbChunks
-}
-
-// Used to either record a chunk of a file or it's metafile
-func writeFileToArchive(fileName string, hashes []byte) *os.File {
-	path := util.ChunksFolderPath + fileName + ".bin"
-	metafile, err := os.Create(path)
-	util.CheckError(err)
-	_, err3 := metafile.Write(hashes)
-	util.CheckError(err3)
-	return metafile
 }
 
 func createHashes(f *os.File) (int64, []byte) {
@@ -47,26 +42,30 @@ func createHashes(f *os.File) (int64, []byte) {
 		} else {
 			sha := sha256.Sum256(chunk[:n])
 			fileName := hex.EncodeToString(sha[:])
-			writeFileToArchive(fileName, chunk[:n])
+			util.WriteFileToArchive(fileName, chunk[:n])
 			hashes = append(hashes, sha[:]...)
 		}
 	}
 	return fileSizeBytes, hashes
 }
 
-func IndexFile(fileName string) *MyFile {
+func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 	f, err := os.Open(util.SharedFilesFolderPath + fileName)
 	util.CheckError(err)
 	defer f.Close()
 	fileSizeBytes, hashes := createHashes(f)
 
 	fileIdBytes := sha256.Sum256(hashes)
-	fileId := hex.EncodeToString(fileIdBytes[:])
-	metafile := writeFileToArchive(fileId, hashes)
-	return &MyFile{
+	metahash := hex.EncodeToString(fileIdBytes[:])
+	metafile := util.WriteFileToArchive(metahash, hashes)
+	myFile := &MyFile{
 		fileName: fileName,
 		fileSize: fileSizeBytes,
 		Metafile: metafile,
-		fileId:   fileId,
+		metahash: metahash,
 	}
+	gossiper.lIndexed.Mutex.Lock()
+	gossiper.lIndexed.IndexedFiles[metahash] = myFile
+	gossiper.lIndexed.Mutex.Unlock()
+	return myFile
 }

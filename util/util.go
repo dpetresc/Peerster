@@ -62,3 +62,13 @@ func InitFileFolders() {
 	ChunksFolderPath = filepath.Dir(ex) + "/_Chunks/"
 	createOrEmptyFolder(ChunksFolderPath)
 }
+
+// Used to either record a chunk of a file or it's metafile
+func WriteFileToArchive(fileName string, hashes []byte) *os.File {
+	path := ChunksFolderPath + fileName + ".bin"
+	metafile, err := os.Create(path)
+	CheckError(err)
+	_, err3 := metafile.Write(hashes)
+	CheckError(err3)
+	return metafile
+}

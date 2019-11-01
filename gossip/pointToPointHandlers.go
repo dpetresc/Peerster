@@ -85,6 +85,11 @@ func (gossiper *Gossiper) handleDataRequestPacket(packet *util.GossipPacket) {
 func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 	if packet.DataReply.Destination == gossiper.Name {
 		// TODO
+		/*gossiper.lDownloads.mutex.Lock()
+		metahash := hex.EncodeToString((packet.DataReply.HashValue)[:])
+		gossiper.lDownloads.currentDownloads[]
+		//ack.ackChannel <- sP
+		gossiper.lDownloads.mutex.Unlock()*/
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.DataReply.Destination)
 		// we have the next hop of this origin
