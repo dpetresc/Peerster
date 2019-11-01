@@ -79,7 +79,6 @@ func checkClientFlags() {
 }
 
 func main() {
-	// TODO obliger de préciser le uiport ?? + vérifier
 	checkClientFlags()
 
 	clientAddrStr = "127.0.0.1:" + uiPort

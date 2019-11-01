@@ -40,7 +40,6 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 	} else {
 		// we already checked that we have one of the four combination of flag
 		if packet.Text != "" {
-			// TODO est-ce que t'es obligé de ne pas être en simple pour les rumeurs ?
 			if *packet.Destination != "" {
 				// private message
 				packetToSend := &util.GossipPacket{Private: &util.PrivateMessage{

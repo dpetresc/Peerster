@@ -11,7 +11,6 @@ import (
 // either from a client or from another peer
 // called in clientListener and peersListener
 func (gossiper *Gossiper) handlePrivatePacket(packet *util.GossipPacket) {
-	// TODO vérifier ?
 	if packet.Private.Destination == gossiper.Name {
 		packet.Private.PrintPrivateMessage()
 
@@ -42,7 +41,7 @@ func (gossiper *Gossiper) sendRequestedChunk(packet *util.GossipPacket) {
 	filePath := util.ChunksFolderPath + fileId + ".bin"
 	var data []byte
 	if _, err := os.Stat(filePath); err == nil {
-		data, err = ioutil.ReadFile("file.txt") // b has type []byte
+		data, err = ioutil.ReadFile(filePath)
 		util.CheckError(err)
 	} else {
 		data = make([]byte, 0)
@@ -84,12 +83,19 @@ func (gossiper *Gossiper) handleDataRequestPacket(packet *util.GossipPacket) {
 
 func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 	if packet.DataReply.Destination == gossiper.Name {
-		// TODO
-		/*gossiper.lDownloads.mutex.Lock()
-		metahash := hex.EncodeToString((packet.DataReply.HashValue)[:])
-		gossiper.lDownloads.currentDownloads[]
-		//ack.ackChannel <- sP
-		gossiper.lDownloads.mutex.Unlock()*/
+		gossiper.lDownloadingChunk.mutex.Lock()
+		hash := hex.EncodeToString(packet.DataReply.HashValue)
+		from := packet.DataReply.Origin
+		chunkIdentifier := DownloadIdentifier{
+			from: from,
+			hash: hash,
+		}
+		_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
+		if ok {
+			responseChan := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
+			responseChan <- *packet.DataReply
+		}
+		gossiper.lCurrentDownloads.mutex.Unlock()
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.DataReply.Destination)
 		// we have the next hop of this origin

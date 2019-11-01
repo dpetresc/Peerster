@@ -13,7 +13,6 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 
 	packet.Rumor.PrintRumorMessage(sourceAddrString)
 
-	// TODO vérifier est-ce que je dois print les peers meme si c'est un route rumor message ?
 	gossiper.Peers.Mutex.RLock()
 	gossiper.Peers.PrintPeers()
 	gossiper.Peers.Mutex.RUnlock()
@@ -29,12 +28,11 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 			Received: nil,
 		}
 	}
-	// TODO vérifier je stocke pas mes propres messages obviously
-	if origin != gossiper.Name {
-		gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID, routeRumor)
-	}
 
 	if gossiper.lAllMsg.allMsg[origin].GetNextID() <= packet.Rumor.ID {
+		if origin != gossiper.Name {
+			gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID, routeRumor)
+		}
 		gossiper.lAllMsg.allMsg[origin].AddMessage(packet, packet.Rumor.ID, routeRumor)
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()

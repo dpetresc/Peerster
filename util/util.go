@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-var MaxUDPSize int = 8192
+var MaxUDPSize int = 10000
 var HopLimit uint32 = 10
 
 var SharedFilesFolderPath string
@@ -64,11 +64,11 @@ func InitFileFolders() {
 }
 
 // Used to either record a chunk of a file or it's metafile
-func WriteFileToArchive(fileName string, hashes []byte) *os.File {
+func WriteFileToArchive(fileName string, data []byte) *os.File {
 	path := ChunksFolderPath + fileName + ".bin"
-	metafile, err := os.Create(path)
+	file, err := os.Create(path)
 	CheckError(err)
-	_, err3 := metafile.Write(hashes)
+	_, err3 := file.Write(data)
 	CheckError(err3)
-	return metafile
+	return file
 }

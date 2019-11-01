@@ -3,10 +3,6 @@ package util
 import "fmt"
 
 /******************** CLIENT MESSAGE ********************/
-// TODO remove
-/*type Message struct {
-	Text string
-}*/
 type Message struct {
 	Text string
 	Destination *string

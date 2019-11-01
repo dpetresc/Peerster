@@ -20,6 +20,7 @@ func RumorMessagesHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(msgListJson)
+			// TODO lock
 			util.LastMessagesInOrder = make([]*util.RumorMessage, 0)
 		}
 	case "POST" :

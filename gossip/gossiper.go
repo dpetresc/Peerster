@@ -32,8 +32,9 @@ type Gossiper struct {
 	LDsdv *routing.LockDsdv
 	//files
 	lIndexed          *LockIndexedFile
-	lDownloadingChunk lockDownloadingChunks
-	lDownloads        *lockDownload
+	lDownloadingChunk *lockDownloadingChunks
+	lCurrentDownloads *lockCurrentDownloading
+	lDownloadedFiles  *lockDownloadedFiles
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
@@ -70,18 +71,22 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	// routing
 	lDsdv := routing.NewDsdv()
 
-	//files
+	// files
 	lIndexed := LockIndexedFile{
 		IndexedFiles: make(map[string]*MyFile),
 		Mutex:        sync.RWMutex{},
 	}
 	lDownloadingChunk := lockDownloadingChunks{
-		currentDownloadingChunks: make(map[string]chan util.DataReply),
+		currentDownloadingChunks: make(map[DownloadIdentifier]chan util.DataReply),
 		mutex: sync.Mutex{},
 	}
-	lDownloads := &lockDownload{
-		currentDownloads: make(map[string]*fileCurrentDownloadingStatus),
+	lCurrentDownloads := lockCurrentDownloading{
+		currentDownloads: make(map[DownloadIdentifier]*fileCurrentDownloadingStatus),
 		mutex:            sync.RWMutex{},
+	}
+	lDownloadedFiles := lockDownloadedFiles{
+		downloads: make(map[string]bool),
+		mutex:     sync.RWMutex{},
 	}
 
 	return &Gossiper{
@@ -98,8 +103,9 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAcks:             &lacks,
 		LDsdv:             &lDsdv,
 		lIndexed:          &lIndexed,
-		lDownloadingChunk: lDownloadingChunk,
-		lDownloads:        lDownloads,
+		lDownloadingChunk: &lDownloadingChunk,
+		lCurrentDownloads: &lCurrentDownloads,
+		lDownloadedFiles:  &lDownloadedFiles,
 	}
 }
 
@@ -147,23 +153,11 @@ func (gossiper *Gossiper) RouteRumors() {
 
 	packetToSend := gossiper.createNewPacketToSend("", true)
 	gossiper.rumormonger("", &packetToSend, false)
-	// TODO vérifier rumonger ???
-	/*peer := gossiper.Peers.ChooseRandomPeer("")
-	if peer != "" {
-
-		gossiper.sendPacketToPeer(peer, &packetToSend)
-
-	}*/
 	for {
 		select {
 		case <-ticker.C:
 			packetToSend := gossiper.createNewPacketToSend("", true)
 			gossiper.rumormonger("", &packetToSend, false)
-			// TODO vérifier rumonger ???
-			/*peer := gossiper.Peers.ChooseRandomPeer("")
-			if peer != "" {
-				gossiper.sendPacketToPeer(peer, &packetToSend)
-			}*/
 		}
 	}
 }
