@@ -83,10 +83,5 @@ func main() {
 	// TODO gérer erreur (log.fatal => print)
 	// TODO checker tous les make (length et capacité)
 
-
-	// TODO remove
-	//test := file.IndexFile("test.gif")
-	//defer test.Metafile.Close()
-
 	mGossiper.ListenPeers()
 }

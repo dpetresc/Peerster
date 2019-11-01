@@ -52,7 +52,7 @@ func (l *LockDsdv) UpdateOrigin(origin string, peer string, id uint32, routeRumo
 			l.Origins = append(l.Origins, origin)
 		}
 		if !routeRumor {
-			fmt.Printf("DSDV %s %s", origin, peer)
+			fmt.Printf("DSDV %s %s\n", origin, peer)
 		}
 		l.Dsdv[origin] = peer
 		l.LastIds[origin] = id

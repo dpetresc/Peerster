@@ -64,6 +64,7 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 		Metafile: metafile,
 		metahash: metahash,
 	}
+	//fmt.Println("Metahash : " + metahash)
 	gossiper.lIndexed.Mutex.Lock()
 	gossiper.lIndexed.IndexedFiles[metahash] = myFile
 	gossiper.lIndexed.Mutex.Unlock()
