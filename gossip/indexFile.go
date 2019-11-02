@@ -51,6 +51,7 @@ func createHashes(f *os.File) (int64, []byte) {
 }
 
 func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
+	fmt.Println(util.SharedFilesFolderPath + fileName)
 	f, err := os.Open(util.SharedFilesFolderPath + fileName)
 	util.CheckError(err)
 	defer f.Close()

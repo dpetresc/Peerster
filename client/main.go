@@ -91,6 +91,11 @@ func main() {
 		File: &file,
 		Request: &requestBytes,
 	}
+
+	if dest == "" {
+		packetToSend.Destination = nil
+	}
+
 	packetByte, err := protobuf.Encode(&packetToSend)
 	util.CheckError(err)
 

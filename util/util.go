@@ -42,7 +42,8 @@ func ClearDir(dir string) error {
 
 func createOrEmptyFolder(folderPath string) {
 	if _, err := os.Stat(folderPath); err == nil {
-		ClearDir(folderPath)
+		// comment it for the tests
+		//ClearDir(folderPath)
 	} else if os.IsNotExist(err) {
 		os.Mkdir(folderPath, 0777)
 	}

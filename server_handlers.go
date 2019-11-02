@@ -28,12 +28,17 @@ func RumorMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		util.CheckError(err)
 		messageText := r.Form.Get("value")
 		dest := r.Form.Get("identifier")
+		var message util.Message
 		if dest == "public" {
-			dest = ""
-		}
-		message := util.Message{
-			Text:      messageText,
-			Destination: &dest,
+			message = util.Message{
+				Text:      messageText,
+				Destination: nil,
+			}
+		} else {
+			message = util.Message{
+				Text:      messageText,
+				Destination: &dest,
+			}
 		}
 		packetBytes, err := protobuf.Encode(&message)
 		util.CheckError(err)

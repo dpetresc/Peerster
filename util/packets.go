@@ -11,7 +11,7 @@ type Message struct {
 }
 
 func (clientMessage *Message) PrintClientMessage() {
-	if *clientMessage.Destination != "" {
+	if clientMessage.Destination != nil {
 		fmt.Printf("CLIENT MESSAGE %s dest %s\n", clientMessage.Text, *clientMessage.Destination)
 	} else {
 		fmt.Printf("CLIENT MESSAGE %s\n", clientMessage.Text)

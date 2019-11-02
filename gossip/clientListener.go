@@ -40,7 +40,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 	} else {
 		// we already checked that we have one of the four combination of flag
 		if packet.Text != "" {
-			if *packet.Destination != "" {
+			if packet.Destination != nil {
 				// private message
 				packetToSend := &util.GossipPacket{Private: &util.PrivateMessage{
 					Origin: gossiper.Name,
@@ -59,7 +59,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
 				go gossiper.rumormonger("", &packetToSend, false)
 			}
-		}else if *packet.Destination != ""{
+		}else if packet.Destination != nil {
 			// request file
 			go gossiper.startDownload(packet)
 		}else {
