@@ -203,7 +203,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 							gossiper.initFileCurrentStat(currChunkIdentifier, data)
 						} else {
 							currChunk := gossiper.incrementChunkNumber(fileCurrentStat)
-							if int(currChunk) == len(fileCurrentStat.chunkHashes) {
+							if int(currChunk) > len(fileCurrentStat.chunkHashes) {
 								fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 								gossiper.reconstructFile(metahash, *packet.File, fileCurrentStat.chunkHashes)
 								gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
