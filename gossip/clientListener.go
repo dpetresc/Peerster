@@ -10,7 +10,7 @@ import (
 func (gossiper *Gossiper) readClientPacket() *util.Message {
 	connection := gossiper.ClientConn
 	var packet util.Message
-	packetBytes := make([]byte, util.MaxUDPSize)
+	packetBytes := make([]byte, util.MaxUDPSize + 2000)
 	n, _, err := connection.ReadFromUDP(packetBytes)
 	util.CheckError(err)
 	errDecode := protobuf.Decode(packetBytes[:n], &packet)

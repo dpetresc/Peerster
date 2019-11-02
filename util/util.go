@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-var MaxUDPSize int = 10000
+var MaxUDPSize int = 8192
 var HopLimit uint32 = 10
 
 var SharedFilesFolderPath string
