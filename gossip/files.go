@@ -80,7 +80,7 @@ func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier,
 	if isMetaFile {
 		fmt.Printf("DOWNLOADING metafile of %s from %s\n", *packet.File, *packet.Destination)
 	} else {
-		fmt.Println("DOWNLOADING %s chunk %d from %s\n", *packet.File, chunkNumber, *packet.Destination)
+		fmt.Printf("DOWNLOADING %s chunk %d from %s\n", *packet.File, chunkNumber, *packet.Destination)
 	}
 	go gossiper.handleDataRequestPacket(packetToSend)
 	return waitingChan
@@ -129,6 +129,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 		metahashPath := util.ChunksFolderPath + metahash + ".bin"
 		data, err := ioutil.ReadFile(metahashPath)
 		util.CheckError(err)
+		fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 		gossiper.reconstructFile(metahash, *packet.File, getChunkHashes(data))
 		return
 	}
