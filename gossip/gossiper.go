@@ -148,11 +148,11 @@ func (gossiper *Gossiper) AntiEntropy() {
 }
 
 func (gossiper *Gossiper) RouteRumors() {
-	ticker := time.NewTicker(time.Duration(gossiper.rtimer) * time.Second)
-	defer ticker.Stop()
-
 	packetToSend := gossiper.createNewPacketToSend("", true)
 	gossiper.rumormonger("", &packetToSend, false)
+
+	ticker := time.NewTicker(time.Duration(gossiper.rtimer) * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:

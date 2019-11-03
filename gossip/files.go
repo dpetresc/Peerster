@@ -145,7 +145,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 	_, ok := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
 	if ok {
 		fmt.Printf("Already downloading metahash %x from %s\n", *packet.Request, from)
-		// TODO pending requests => keep track of those requests or just ignore them ?
+		// TODO pending requests => keep track of those requests or just ignore them
 		gossiper.lCurrentDownloads.mutex.Unlock()
 	} else {
 		gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = nil

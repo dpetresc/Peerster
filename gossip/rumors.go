@@ -29,10 +29,8 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 		}
 	}
 
-	if gossiper.lAllMsg.allMsg[origin].GetNextID() <= packet.Rumor.ID {
-		if origin != gossiper.Name {
-			gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID, routeRumor)
-		}
+	if gossiper.lAllMsg.allMsg[origin].GetNextID() <= packet.Rumor.ID && origin != gossiper.Name {
+		gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID, routeRumor)
 		gossiper.lAllMsg.allMsg[origin].AddMessage(packet, packet.Rumor.ID, routeRumor)
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
