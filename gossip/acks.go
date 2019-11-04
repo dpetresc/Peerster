@@ -56,7 +56,7 @@ func (gossiper *Gossiper) removeAck(peer string, packet *util.GossipPacket, ack 
 	gossiper.lAcks.mutex.Unlock()
 }
 
-func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.GossipPacket) {
+func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 	gossiper.InitAcks(peer, packet)
 
 	gossiper.lAcks.mutex.Lock()
@@ -75,7 +75,7 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 
 		if packetToRumormonger != nil {
 			// we have received a newer packet
-			gossiper.sendRumor(peer, packetToRumormonger, "")
+			gossiper.sendRumor(peer, packetToRumormonger)
 			return
 		} else if wantedStatusPacket != nil {
 			//receiver has newer message than me
@@ -85,7 +85,7 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 
 		// flip a coin
 		if rand.Int()%2 == 0 {
-			gossiper.rumormonger(sourceAddr, packet, true)
+			gossiper.rumormonger(peer, packet, true)
 		}
 	case <-ticker.C:
 		gossiper.rumormonger("", packet, false)

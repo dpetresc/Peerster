@@ -28,7 +28,7 @@ func (gossiper *Gossiper) handleStatusPacket(packet *util.GossipPacket, sourceAd
 	if !isAck {
 		if packetToRumormonger != nil {
 			// we have received a newer packet
-			gossiper.sendRumor(sourceAddrString, packetToRumormonger, "")
+			gossiper.sendRumor(sourceAddrString, packetToRumormonger)
 		} else if wantedStatusPacket != nil {
 			//receiver has newer message than me
 			gossiper.sendPacketToPeer(sourceAddrString, wantedStatusPacket)
