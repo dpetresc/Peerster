@@ -58,7 +58,7 @@ func InitFileFolders() {
 	}
 
 	DownloadsFolderPath = filepath.Dir(ex) + "/​_Downloads/"
-	if _, err := os.Stat(SharedFilesFolderPath); os.IsNotExist(err) {
-		os.Mkdir(SharedFilesFolderPath,0777)
+	if _, err := os.Stat(DownloadsFolderPath); os.IsNotExist(err) {
+		os.Mkdir(DownloadsFolderPath,0777)
 	}
 }
