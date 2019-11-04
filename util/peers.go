@@ -104,7 +104,7 @@ func (peers *Peers) AddPeer(addr string) {
 }
 
 func (peers *Peers) PrintPeers() {
-	var s string = ""
+	/*var s string = ""
 	if len(peers.PeersMap) > 0 {
 		s += "PEERS "
 		keys := make([]string, 0, len(peers.PeersMap))
@@ -116,7 +116,7 @@ func (peers *Peers) PrintPeers() {
 		}
 		s += keys[len(keys)-1]
 		fmt.Println(s)
-	}
+	}*/
 }
 
 func (peers *Peers) ChooseRandomPeer(sourcePeer string) string {

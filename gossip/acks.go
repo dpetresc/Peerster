@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"math/rand"
 	"sync"
@@ -21,7 +22,8 @@ type LockAcks struct {
 
 func (gossiper *Gossiper) InitAcks(peer string, packet *util.GossipPacket) {
 	gossiper.lAcks.mutex.Lock()
-	defer gossiper.lAcks.mutex.Unlock()
+	fmt.Println("Lock lAcks InitAcks")
+	//defer gossiper.lAcks.mutex.Unlock()
 	_, ok := gossiper.lAcks.acks[peer]
 	if !ok {
 		gossiper.lAcks.acks[peer] = make(map[string][]Ack)
@@ -30,11 +32,13 @@ func (gossiper *Gossiper) InitAcks(peer string, packet *util.GossipPacket) {
 	if !ok2 {
 		gossiper.lAcks.acks[peer][packet.Rumor.Origin] = make([]Ack, 0)
 	}
+	gossiper.lAcks.mutex.Unlock()
+	fmt.Println("Unlock Lock lAcks InitAcks")
 }
 
 func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan util.StatusPacket, Ack) {
 	// Requires a write lock
-	ackChannel := make(chan util.StatusPacket)
+	ackChannel := make(chan util.StatusPacket, 1)
 	ack := Ack{
 		ID:         packet.Rumor.ID,
 		ackChannel: ackChannel,
@@ -46,6 +50,7 @@ func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan u
 func (gossiper *Gossiper) removeAck(peer string, packet *util.GossipPacket, ack Ack) {
 	// Requires a write lock
 	gossiper.lAcks.mutex.Lock()
+	fmt.Println("Lock lAcks removeAck")
 	newAcks := make([]Ack, 0, len(gossiper.lAcks.acks[peer][packet.Rumor.Origin])-1)
 	for _, ackElem := range gossiper.lAcks.acks[peer][packet.Rumor.Origin] {
 		if ackElem != ack {
@@ -54,14 +59,17 @@ func (gossiper *Gossiper) removeAck(peer string, packet *util.GossipPacket, ack 
 	}
 	gossiper.lAcks.acks[peer][packet.Rumor.Origin] = newAcks
 	gossiper.lAcks.mutex.Unlock()
+	fmt.Println("Unlock Lock lAcks removeAck")
 }
 
 func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 	gossiper.InitAcks(peer, packet)
 
 	gossiper.lAcks.mutex.Lock()
+	fmt.Println("Lock lAcks WaitAck")
 	ackChannel, ack := gossiper.addAck(packet, peer)
 	gossiper.lAcks.mutex.Unlock()
+	fmt.Println("Unlock Lock lAcks WaitAck")
 
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -69,9 +77,11 @@ func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 	select {
 	case sP := <-ackChannel:
 		gossiper.lAllMsg.mutex.RLock()
+		fmt.Println("Rlock lAllMsg WaitAck")
 		gossiper.removeAck(peer, packet, ack)
 		packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(sP)
 		gossiper.lAllMsg.mutex.RUnlock()
+		fmt.Println("Unlock Rlock lAllMsg WaitAck")
 
 		if packetToRumormonger != nil {
 			// we have received a newer packet
@@ -79,6 +89,9 @@ func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 			return
 		} else if wantedStatusPacket != nil {
 			//receiver has newer message than me
+			fmt.Println("ICI2")
+			packet.Rumor.PrintRumorMessage("")
+			wantedStatusPacket.Status.PrintStatusMessage("")
 			gossiper.sendPacketToPeer(peer, wantedStatusPacket)
 			return
 		}
@@ -95,19 +108,25 @@ func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 
 func (gossiper *Gossiper) triggerAcks(sP util.StatusPacket, sourceAddrString string) bool {
 	var isAck = false
+	fmt.Println("TEST")
 	for _, peerStatus := range sP.Want {
+		fmt.Println("TEST2")
 		origin := peerStatus.Identifier
 		// sourceAddr
 		_, ok := gossiper.lAcks.acks[sourceAddrString][origin]
 		if ok {
 			for _, ack := range gossiper.lAcks.acks[sourceAddrString][origin] {
+				fmt.Println("TEST3")
 				if ack.ID < peerStatus.NextID {
+					fmt.Println(sourceAddrString, origin, ack.ID)
 					isAck = true
 					ack.ackChannel <- sP
+					fmt.Println(ack.ID)
 				}
 			}
 		}
 	}
+	fmt.Println("TEST4")
 	return isAck
 }
 

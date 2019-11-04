@@ -48,6 +48,8 @@ func (l *LockDsdv) UpdateOrigin(origin string, peer string, id uint32, routeRumo
 	l.Mutex.Lock()
 	idOrigin := l.getLastIDOrigin(origin)
 	if id > idOrigin {
+		fmt.Println(l)
+
 		if idOrigin == 0 {
 			l.Origins = append(l.Origins, origin)
 		}
@@ -68,3 +70,15 @@ func AddNewPrivateMessageForGUI(key string, packet *util.PrivateMessage) {
 	LastPrivateMessages[key] = append(
 		LastPrivateMessages[key], packet)
 }
+
+//DSDV implements the function of the interface String
+func (dsdv *LockDsdv) String() string{
+	s := "================================================================\n"
+	s += "Origin - Next-Hop - Sequence-Number\n"
+	for origin, nexthop := range dsdv.Dsdv{
+		s += fmt.Sprintf("%s - %s - %d\n", origin, nexthop, dsdv.LastIds[origin])
+	}
+	s += "================================================================\n"
+	return s
+}
+
