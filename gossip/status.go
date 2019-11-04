@@ -14,26 +14,16 @@ func (gossiper *Gossiper) handleStatusPacket(packet *util.GossipPacket, sourceAd
 	gossiper.Peers.Mutex.RUnlock()
 
 	gossiper.lAllMsg.mutex.RLock()
-	fmt.Println("RLock lAllMsg handleStatusPacket")
-	//defer fmt.Println("FINISH")
-	//defer gossiper.lAllMsg.mutex.RUnlock()
 	gossiper.lAcks.mutex.RLock()
-	fmt.Println("Lock lAcks handleStatusPacket")
-	//defer gossiper.lAcks.mutex.RUnlock()
 
-	fmt.Println("ICI lack")
 	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(*packet.Status)
 	if packetToRumormonger == nil && wantedStatusPacket == nil {
 		fmt.Println("IN SYNC WITH " + sourceAddrString)
 	}
 
-	fmt.Println("ICI2 lack")
 	isAck := gossiper.triggerAcks(*packet.Status, sourceAddrString)
-	fmt.Println("ICI3 lack")
 	gossiper.lAcks.mutex.RUnlock()
-	fmt.Println("Unlock RLock lAllMsg handleStatusPacket")
 	gossiper.lAllMsg.mutex.RUnlock()
-	fmt.Println("Unlock Lock lAcks handleStatusPacket")
 
 	if !isAck {
 		if packetToRumormonger != nil {

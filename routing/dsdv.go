@@ -48,8 +48,6 @@ func (l *LockDsdv) UpdateOrigin(origin string, peer string, id uint32, routeRumo
 	l.Mutex.Lock()
 	idOrigin := l.getLastIDOrigin(origin)
 	if id > idOrigin {
-		fmt.Println(l)
-
 		if idOrigin == 0 {
 			l.Origins = append(l.Origins, origin)
 		}

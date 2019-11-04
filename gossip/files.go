@@ -53,7 +53,7 @@ func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier,
 	_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
 	if !ok {
 		// first time requesting this chunk
-		waitingChan = make(chan util.DataReply)
+		waitingChan = make(chan util.DataReply,1)
 		gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier] = waitingChan
 	} else {
 		waitingChan = gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]

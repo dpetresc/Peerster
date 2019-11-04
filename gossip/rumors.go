@@ -17,9 +17,7 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 	gossiper.Peers.PrintPeers()
 	gossiper.Peers.Mutex.RUnlock()
 
-	fmt.Println("ICI3")
 	gossiper.lAllMsg.mutex.Lock()
-	fmt.Println("Lock lAllMsg handleRumorPacket")
 	origin := packet.Rumor.Origin
 	_, ok := gossiper.lAllMsg.allMsg[origin]
 	if !ok {
@@ -31,21 +29,17 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 		}
 	}
 
-	fmt.Println("ICI1")
 	if gossiper.lAllMsg.allMsg[origin].GetNextID() <= packet.Rumor.ID && origin != gossiper.Name {
-		fmt.Println("ICI2")
 		gossiper.LDsdv.UpdateOrigin(origin, sourceAddrString, packet.Rumor.ID, routeRumor)
 		gossiper.lAllMsg.allMsg[origin].AddMessage(packet, packet.Rumor.ID, routeRumor)
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
-		fmt.Println("Unlock Lock lAllMsg handleRumorPacket")
 		// send a copy of packet to random neighbor - can not send to the source of the message
 		gossiper.rumormonger(sourceAddrString, packet, false)
 	} else {
 		// message already seen - still need to ack
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
-		fmt.Println("Unlock Lock lAllMsg handleRumorPacket")
 	}
 }
 
@@ -65,8 +59,6 @@ func (gossiper *Gossiper) rumormonger(previousAddr string, packet *util.GossipPa
 func (gossiper *Gossiper) sendRumor(peer string, packet *util.GossipPacket) {
 	fmt.Println("MONGERING with " + peer)
 	gossiper.sendPacketToPeer(peer, packet)
-	fmt.Println("SEND RUMOR TO : ", peer)
-	packet.Rumor.PrintRumorMessage("")
 	go gossiper.WaitAck(peer, packet)
 }
 

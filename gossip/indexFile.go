@@ -3,6 +3,7 @@ package gossip
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"io"
 	"math"
@@ -78,7 +79,7 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 		Metafile: chunkHashes,
 		metahash: metahash,
 	}
-	//fmt.Println("Metahash : " + metahash)
+	fmt.Println("Metahash : " + metahash)
 	gossiper.lFiles.Mutex.Lock()
 	gossiper.lFiles.Files[metahash] = myFile
 	gossiper.lFiles.Mutex.Unlock()

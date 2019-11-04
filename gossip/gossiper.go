@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
@@ -141,10 +140,8 @@ func (gossiper *Gossiper) AntiEntropy() {
 			gossiper.Peers.Mutex.RUnlock()
 			if p != "" {
 				gossiper.lAllMsg.mutex.RLock()
-				fmt.Println("Rlock lAllMsg AntiEntropy")
 				gossiper.SendStatusPacket(p)
 				gossiper.lAllMsg.mutex.RUnlock()
-				fmt.Println("Unlock Rlock lAllMsg AntiEntropy")
 			}
 
 		}
@@ -170,7 +167,6 @@ func (gossiper *Gossiper) RouteRumors() {
 // also called in clientListener
 func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) util.GossipPacket {
 	gossiper.lAllMsg.mutex.Lock()
-	fmt.Println("Lock lAllMsg createNewPacketToSend")
 	id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
 	packetToSend := util.GossipPacket{Rumor: &util.RumorMessage{
 		Origin: gossiper.Name,
@@ -179,6 +175,5 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	}}
 	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, routeRumor)
 	gossiper.lAllMsg.mutex.Unlock()
-	fmt.Println("Unlock Lock lAllMsg createNewPacketToSend")
 	return packetToSend
 }
