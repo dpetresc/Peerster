@@ -31,10 +31,10 @@ type Gossiper struct {
 	// routing
 	LDsdv *routing.LockDsdv
 	//files
-	lIndexed          *LockIndexedFile
+	lFiles            *LockFiles
 	lDownloadingChunk *lockDownloadingChunks
 	lCurrentDownloads *lockCurrentDownloading
-	lDownloadedFiles  *lockDownloadedFiles
+	lAllChunks        *lockAllChunks
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
@@ -72,21 +72,22 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	lDsdv := routing.NewDsdv()
 
 	// files
-	lIndexed := LockIndexedFile{
-		IndexedFiles: make(map[string]*MyFile),
-		Mutex:        sync.RWMutex{},
+	lFiles := LockFiles{
+		Files: make(map[string]*MyFile),
+		Mutex: sync.RWMutex{},
 	}
 	lDownloadingChunk := lockDownloadingChunks{
 		currentDownloadingChunks: make(map[DownloadIdentifier]chan util.DataReply),
 		mutex: sync.Mutex{},
 	}
 	lCurrentDownloads := lockCurrentDownloading{
-		currentDownloads: make(map[DownloadIdentifier]*fileCurrentDownloadingStatus),
+		currentDownloads: make(map[DownloadIdentifier]uint32),
 		mutex:            sync.RWMutex{},
 	}
-	lDownloadedFiles := lockDownloadedFiles{
-		downloads: make(map[string]bool),
-		mutex:     sync.RWMutex{},
+
+	lAllChunks := lockAllChunks{
+		chunks: make(map[string][]byte),
+		mutex:  sync.RWMutex{},
 	}
 
 	return &Gossiper{
@@ -102,10 +103,10 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllMsg:           &lockAllMsg,
 		lAcks:             &lacks,
 		LDsdv:             &lDsdv,
-		lIndexed:          &lIndexed,
+		lFiles:            &lFiles,
 		lDownloadingChunk: &lDownloadingChunk,
 		lCurrentDownloads: &lCurrentDownloads,
-		lDownloadedFiles:  &lDownloadedFiles,
+		lAllChunks:        &lAllChunks,
 	}
 }
 

@@ -41,6 +41,13 @@ h1 {
       -28px 56px 1px #e4e3e2;
 }
 
+h2 {
+	text-align: center;
+	vertical-align: middle;
+	text-transform: uppercase;
+  text-rendering: optimizeLegibility;
+}
+
 button {
     color: #fff !important;
 		text-transform: uppercase;
@@ -61,19 +68,37 @@ button:hover {
 }
 
 .form-control {
-		display: block;
+		display: inline;
 		padding: .9rem 1rem;
 		cursor: pointer;
-		border-raduis: ;
+		text-align: center;
+		vertical-align: middle;
 }
 
 input {
 		display: block;
 		padding: 30px 100px 30px;
 		cursor: pointer;
-		width: 200px;
+		width: 300px;
 }
 
 tr.space>td {
   padding-bottom: 3em;
+	vertical-align: middle;
+	text-align: left;
+	vertical-align: middle;
 }
+
+tr.messages>th, th>span {
+	display: inline;
+	text-align: center;
+	vertical-align: middle;
+}
+
+li {
+  display: list-item;
+	list-style-type: none;
+	text-align: left;
+	vertical-align: middle;
+}
+

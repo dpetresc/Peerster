@@ -43,7 +43,7 @@ func ClearDir(dir string) error {
 func createOrEmptyFolder(folderPath string) {
 	if _, err := os.Stat(folderPath); err == nil {
 		// comment it for the tests
-		//ClearDir(folderPath)
+		ClearDir(folderPath)
 	} else if os.IsNotExist(err) {
 		os.Mkdir(folderPath, 0777)
 	}
@@ -58,18 +58,7 @@ func InitFileFolders() {
 	}
 
 	DownloadsFolderPath = filepath.Dir(ex) + "/​_Downloads/"
-	createOrEmptyFolder(DownloadsFolderPath)
-
-	ChunksFolderPath = filepath.Dir(ex) + "/_Chunks/"
-	createOrEmptyFolder(ChunksFolderPath)
-}
-
-// Used to either record a chunk of a file or it's metafile
-func WriteFileToArchive(fileName string, data []byte) *os.File {
-	path := ChunksFolderPath + fileName + ".bin"
-	file, err := os.Create(path)
-	CheckError(err)
-	_, err3 := file.Write(data)
-	CheckError(err3)
-	return file
+	if _, err := os.Stat(SharedFilesFolderPath); os.IsNotExist(err) {
+		os.Mkdir(SharedFilesFolderPath,0777)
+	}
 }

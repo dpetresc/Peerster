@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/routing"
@@ -119,6 +120,48 @@ func PrivateMessagesHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(msgListJson)
 			routing.LastPrivateMessages = make(map[string][]*util.PrivateMessage)
+		}
+	}
+}
+
+func FileHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "POST" :
+		err := r.ParseForm()
+		util.CheckError(err)
+		fileName := r.Form.Get("value")
+		dest := r.Form.Get("identifier")
+		var message util.Message
+		if dest == "public" {
+			message = util.Message{
+				Destination: nil,
+				File: &fileName,
+			}
+			packetBytes, err := protobuf.Encode(&message)
+			util.CheckError(err)
+			mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+		} else {
+			request := r.Form.Get("request")
+			requestBytes, err := hex.DecodeString(request)
+			goodFormat := true
+			if err != nil {
+				goodFormat = false
+			} else if len(requestBytes) != 32{
+				goodFormat = false
+			}
+			if !goodFormat {
+				http.Error(w, "Invalid metahash !", http.StatusUnauthorized)
+			} else {
+				message = util.Message{
+					Destination: &dest,
+					File: &fileName,
+					Request: &requestBytes,
+				}
+				packetBytes, err := protobuf.Encode(&message)
+				util.CheckError(err)
+				mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+			}
 		}
 	}
 }

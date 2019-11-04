@@ -2,53 +2,75 @@
 <!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
 <!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
 <!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <title></title>
-        <meta name="description" content="">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="stylesheet1.css">
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-		<script type="text/javascript" src="frontend.js"></script>
-    </head>
-    <body>
-        <!--[if lt IE 7]>
+<!--[if gt IE 8]><!-->
+<html class="no-js">
+<!--<![endif]-->
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title></title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="stylesheet1.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script type="text/javascript" src="frontend.js"></script>
+</head>
+
+<body style ="font-family:courier,arial,helvetica;">
+    <!--[if lt IE 7]>
             <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
         <![endif]-->
-        <h1 id="title" class="title">Peerster GUI</h1>
+    <h1 id="title" class="title">Peerster GUI</h1>
 
-        <h3 id="nodeName"></h3>
-				<div id="button">
-					<table>
-						<tr class="space">
-    					<td><input type="text" id="sendNode" placeholder="Add a new peer here (IP:PORT)" class="form-control"/></td>
-		      		<td><button onclick="addNode()" class="btn btn-default" id="addNode">Add Peer</Button></td>
-						</tr>
-		      	<tr class="space">
-    					<td><input type="text" id="sendMessage" placeholder="Type your public message here" class="form-control"/></td>
-		      		<td><button onclick="sendMessage()" class="btn btn-default" id="addMessage">Send Message</Button></td>
-						</tr>				
-				</table>
-				</div>
-        <h3 id="knownPeers" style="visibility: hidden">Known Peers</h3>
-        <ul id="peers" style="width:100%"></ul>
+    <h3 id="nodeName"></h3>
+    <div id="button">
+        <table width="100%">
+            <tr class="space">
+                <td><input type="text" id="sendNode" placeholder="Add a new peer here (IP:PORT)" class="form-control"/>
+                		<button onclick="addNode()" class="btn btn-default" id="addNode">Add</Button></td>
+								<td><h3 id="knownPeers" style="visibility: hidden">Known Peers</h3>
+											<ul id="peers" style="width:100%">
+    										</ul>
+								</td>
+								<td>
+									<h2 id="chat">Public Chat</h2>
+								</td>
+            </tr>
+            <tr class="space">
+                <td style=''><input type="text" id="sendMessage" placeholder="Type your public message here" class="form-control"/>
+						<button onclick="sendMessage()" class="btn btn-default" id="addMessage">Send</Button></td>
+								<td><h3 id="knownIds" style="visibility: hidden">Known Identifiers</h3>
+											<ul id="ids" style="width:100%">
+											</ul>
+								</td>
+								<td>
+										<div id="chat_table">
+											<div id="public">
+													<table id="public_messages" style="font-weight:normal;visibility: visible">
+														 <tr class="space">
+														 </tr>
+													</table>
+											</div>
+											<div id="private_x">
+														  <table id="private_messages_x" style="font-weight:normal; visibility: visible;">
+														     <tr class="messages">
+														     </tr>
+														  </table>
+													</div>
+											<!--<div id="private_x" style="visibility: hidden"></div>-->
+									</div>
+				</td>
+			<tr class="space">
+				<td style=''><input type="text" id="sendIndex" placeholder="Type the name of the file to index" class="form-control"/>
+					<button onclick="sendIndex()" class="btn btn-default" id="addIndex">Index</Button></td>
+			</tr>
+			<tr class="space">
+				<td style=''><input type="text" id="sendRequest" style="visibility: collapse" placeholder="" class="form-control"/>
+					<button onclick="sendRequest()" class="btn btn-default" id="addRequest" style="visibility: collapse">Request</Button></td>
+			</tr>
+        </table>
+    </div>
+</body>
 
-        <h3 id="knownIds" style="visibility: hidden">Known Identifiers</h3>
-        <ul id="ids" style="width:100%"></ul>
-
-        <h3 id="chat">Public Chat</h3>
-        <div id="chat_table">
-            <div id="public">
-                <table id="public_messages" style="font-weight:normal;visibility: visible"">
-                    <tbody></tbody>
-                </table>
-            </div>
-            <!--<div id="private_x" style="visibility: hidden"></div>-->
-        </div>
-        
-        
-                        
-    </body>
 </html>

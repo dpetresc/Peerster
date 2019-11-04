@@ -106,6 +106,11 @@ function getNodeIdentifiers() {
                                 document.getElementById("chat").innerText = "Public Chat"
                                 document.getElementById("sendMessage").placeholder = "Type your public message here"
 
+                                // TODO
+                                document.getElementById("sendRequest").style.visibility = "collapse"
+                                document.getElementById("addRequest").style.visibility = "collapse"
+                                document.getElementById("addIndex").style.visibility = "visible"
+
 
                                 document.getElementById("private_" + x + "_messages").style.visibility = "collapse"
                                 document.getElementById("public_messages").style.visibility = "visible"
@@ -117,6 +122,14 @@ function getNodeIdentifiers() {
                                 document.getElementById("identifier_" + x).style.fontWeight = "bold"
                                 document.getElementById("chat").innerText = "Private Chat with " + x
                                 document.getElementById("sendMessage").placeholder = "Type your private message for " + currentChat + " here"
+
+                                // TODO
+                                document.getElementById("sendIndex").placeholder = "Type the name of the downloaded file"
+                                document.getElementById("sendRequest").placeholder = "Type metahash of the file request for " + currentChat + " here"
+                                document.getElementById("sendRequest").style.visibility = "visible"
+                                document.getElementById("addIndex").style.visibility = "collapse"
+                                document.getElementById("addRequest").style.visibility = "visible"
+
                                 document.getElementById("public_messages").style.visibility = "collapse"
                                 document.getElementById("private_" + x + "_messages").style.visibility = "visible"
                             }
@@ -214,6 +227,54 @@ function sendMessage() {
         })
     } else {
         alert("Can't send empty message !")
+    }
+}
+
+function sendIndex() {
+    var fileName = document.getElementById("sendIndex").value;
+    if (fileName != "" && currentChat == "public") {
+        $.ajax({
+            type: "POST",
+            url: "http://localhost:8080/file",
+            data: {
+                "value": fileName,
+                "identifier": currentChat
+            },
+            success: function (data, status, xhr) {
+                document.getElementById("sendIndex").value = '';
+            }
+        })
+    } else {
+        alert("Can't index file !")
+    }
+}
+
+function sendRequest() {
+    var fileName = document.getElementById("sendIndex").value;
+    var requestHash = document.getElementById("sendRequest").value;
+    if (fileName != "" && requestHash != "" && currentChat != "public") {
+        $.ajax({
+            type: "POST",
+            url: "http://localhost:8080/file",
+            data: {
+                "value": fileName,
+                "request": requestHash,
+                "identifier": currentChat
+            },
+            statusCode: {
+                401: function (data, textStatus, xhr) {
+                    document.getElementById("sendIndex").value = '';
+                    document.getElementById("sendRequest").value = '';
+                    alert(data.responseText)
+                }
+            },
+            success: function (data, status, xhr) {
+                document.getElementById("sendIndex").value = '';
+                document.getElementById("sendRequest").value = '';
+            }
+        })
+    } else {
+        alert("Must specify a filename and a request metahash !")
     }
 }
 

@@ -4,9 +4,7 @@ import (
 	"flag"
 	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
-	"math/rand"
 	"net/http"
-	"time"
 )
 
 var uiPort string
@@ -36,7 +34,7 @@ func init() {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 
 	clientAddr = "127.0.0.1:" + uiPort
 
@@ -73,6 +71,7 @@ func main() {
 			http.HandleFunc("/node", NodesHandler)
 			http.HandleFunc("/identifier", IdentifiersHandler)
 			http.HandleFunc("/private", PrivateMessagesHandler)
+			http.HandleFunc("/file", FileHandler)
 			for {
 				err := http.ListenAndServe("localhost:8080", nil)
 				util.CheckError(err)

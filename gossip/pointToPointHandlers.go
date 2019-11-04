@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
-	"io/ioutil"
-	"os"
 )
 
 // either from a client or from another peer
@@ -37,13 +35,13 @@ func (gossiper *Gossiper) handlePrivatePacket(packet *util.GossipPacket) {
 
 func (gossiper *Gossiper) sendRequestedChunk(packet *util.GossipPacket) {
 	hashValue := packet.DataRequest.HashValue
-	fileId := hex.EncodeToString(hashValue)
-	filePath := util.ChunksFolderPath + fileId + ".bin"
-	var data []byte
-	if _, err := os.Stat(filePath); err == nil {
-		data, err = ioutil.ReadFile(filePath)
-		util.CheckError(err)
-	} else {
+	chunkId := hex.EncodeToString(hashValue)
+
+	gossiper.lAllChunks.mutex.RLock()
+	data, ok := gossiper.lAllChunks.chunks[chunkId]
+	gossiper.lAllChunks.mutex.RUnlock()
+
+	if !ok {
 		data = make([]byte, 0)
 	}
 	dataReply := &util.GossipPacket{DataReply: &util.DataReply{
