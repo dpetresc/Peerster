@@ -21,7 +21,7 @@ type LockAcks struct {
 
 func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (chan util.StatusPacket, Ack) {
 	// Requires a write lock
-	ackChannel := make(chan util.StatusPacket)
+	ackChannel := make(chan util.StatusPacket, 100)
 	ack := Ack{
 		ID:         packet.Rumor.ID,
 		Origin:     packet.Rumor.Origin,
