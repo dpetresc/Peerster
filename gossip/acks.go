@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"math/rand"
 	"sync"
@@ -44,6 +45,7 @@ func (gossiper *Gossiper) removeAck(peer string, packet *util.GossipPacket, ack 
 }
 
 func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
+	fmt.Println("Waiting ", packet.Rumor.Origin, packet.Rumor.ID)
 	gossiper.lAcks.mutex.Lock()
 	ackChannel, ack := gossiper.addAck(packet, peer)
 	gossiper.lAcks.mutex.Unlock()
@@ -53,6 +55,7 @@ func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 	// wait for status packet
 	select {
 	case sP := <-ackChannel:
+		fmt.Println("Stop waiting ", packet.Rumor.Origin, packet.Rumor.ID)
 		gossiper.removeAck(peer, packet, ack)
 
 		gossiper.lAllMsg.mutex.RLock()
@@ -74,8 +77,10 @@ func (gossiper *Gossiper) WaitAck(peer string, packet *util.GossipPacket) {
 			gossiper.rumormonger(peer, packet, true)
 		}
 	case <-ticker.C:
+		fmt.Println("Timeout waiting ", packet.Rumor.Origin, packet.Rumor.ID)
 		gossiper.rumormonger("", packet, false)
 		gossiper.removeAck(peer, packet, ack)
+		return
 	}
 }
 
