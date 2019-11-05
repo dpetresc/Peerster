@@ -119,21 +119,28 @@ func (peers *Peers) PrintPeers() {
 	}*/
 }
 
-func (peers *Peers) ChooseRandomPeer(sourcePeer string) string {
+func (peers *Peers) ChooseRandomPeer(sourcePeer string, peer string) string {
 	lenMap := len(peers.PeersMap)
 	if lenMap != 0 {
-		randIndex := rand.Intn(lenMap)
+		var randIndex int
+		if lenMap > 2 {
+			randIndex = rand.Intn((lenMap-2))
+		} else {
+			randIndex = rand.Intn(lenMap)
+		}
 		var lastElem string = ""
 		for k := range peers.PeersMap {
 			if randIndex <= 0 {
-				if k != sourcePeer {
+				if k != sourcePeer && k != peer {
 					return k
-				} else if(lastElem != "") {
+				} else if lastElem != "" {
 					return lastElem
 				}
 			}
-			lastElem = k
-			randIndex = randIndex - 1
+			if k != sourcePeer && k != peer {
+				lastElem = k
+				randIndex = randIndex - 1
+			}
 		}
 	}
 	return ""

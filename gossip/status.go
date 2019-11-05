@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"net"
 )
@@ -27,9 +26,8 @@ func (gossiper *Gossiper) handleStatusPacket(packet *util.GossipPacket, sourceAd
 
 	if !isAck {
 		if packetToRumormonger != nil {
-			fmt.Println("Send RUMOR", sourceAddrString, packetToRumormonger.Rumor.Origin, packetToRumormonger.Rumor.ID)
 			// we have received a newer packet
-			gossiper.sendRumor(sourceAddrString, packetToRumormonger)
+			gossiper.sendRumor("", sourceAddrString, packetToRumormonger)
 		} else if wantedStatusPacket != nil {
 			//receiver has newer message than me
 			gossiper.sendPacketToPeer(sourceAddrString, wantedStatusPacket)

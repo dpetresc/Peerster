@@ -62,7 +62,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		mutex:  sync.RWMutex{},
 	}
 
-	acks := make(map[string]map[Ack]bool)
+	acks := make(map[string]map[Ack]chan util.StatusPacket)
 	lacks := LockAcks{
 		acks:  acks,
 		mutex: sync.RWMutex{},
@@ -136,7 +136,7 @@ func (gossiper *Gossiper) AntiEntropy() {
 		select {
 		case <-ticker.C:
 			gossiper.Peers.Mutex.RLock()
-			p := gossiper.Peers.ChooseRandomPeer("")
+			p := gossiper.Peers.ChooseRandomPeer("", "")
 			gossiper.Peers.Mutex.RUnlock()
 			if p != "" {
 				gossiper.lAllMsg.mutex.RLock()
@@ -150,7 +150,7 @@ func (gossiper *Gossiper) AntiEntropy() {
 
 func (gossiper *Gossiper) RouteRumors() {
 	packetToSend := gossiper.createNewPacketToSend("", true)
-	gossiper.rumormonger("", &packetToSend, false)
+	gossiper.rumormonger("", "", &packetToSend, false)
 
 	ticker := time.NewTicker(time.Duration(gossiper.rtimer) * time.Second)
 	defer ticker.Stop()
@@ -158,7 +158,7 @@ func (gossiper *Gossiper) RouteRumors() {
 		select {
 		case <-ticker.C:
 			packetToSend := gossiper.createNewPacketToSend("", true)
-			gossiper.rumormonger("", &packetToSend, false)
+			gossiper.rumormonger("", "", &packetToSend, false)
 		}
 	}
 }

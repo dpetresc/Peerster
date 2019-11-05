@@ -35,7 +35,7 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 		gossiper.SendStatusPacket(sourceAddrString)
 		gossiper.lAllMsg.mutex.Unlock()
 		// send a copy of packet to random neighbor - can not send to the source of the message
-		gossiper.rumormonger(sourceAddrString, packet, false)
+		gossiper.rumormonger(sourceAddrString, "", packet, false)
 	} else {
 		// message already seen - still need to ack
 		gossiper.SendStatusPacket(sourceAddrString)
@@ -43,23 +43,24 @@ func (gossiper *Gossiper) handleRumorPacket(packet *util.GossipPacket, sourceAdd
 	}
 }
 
-func (gossiper *Gossiper) rumormonger(previousAddr string, packet *util.GossipPacket, flippedCoin bool) {
+func (gossiper *Gossiper) rumormonger(sourceAddrString string, peerPrevAddr string, packet *util.GossipPacket, flippedCoin bool) {
 	// tu as reçu le message depuis sourceAddr et tu ne veux pas le lui renvoyer
 	gossiper.Peers.Mutex.RLock()
-	p := gossiper.Peers.ChooseRandomPeer(previousAddr)
+	p := gossiper.Peers.ChooseRandomPeer(sourceAddrString, peerPrevAddr)
 	gossiper.Peers.Mutex.RUnlock()
 	if p != "" {
 		if flippedCoin {
 			fmt.Println("FLIPPED COIN sending rumor to " + p)
+			fmt.Println(packet.Rumor.Origin, packet.Rumor.ID)
 		}
-		gossiper.sendRumor(p, packet)
+		gossiper.sendRumor(sourceAddrString, p, packet)
 	}
 }
 
-func (gossiper *Gossiper) sendRumor(peer string, packet *util.GossipPacket) {
+func (gossiper *Gossiper) sendRumor(sourceAddrString string, peer string, packet *util.GossipPacket) {
 	//fmt.Println("MONGERING with " + peer)
 	gossiper.sendPacketToPeer(peer, packet)
-	go gossiper.WaitAck(peer, packet)
+	go gossiper.WaitAck(sourceAddrString, peer, packet)
 }
 
 
