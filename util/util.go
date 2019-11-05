@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 )
 
@@ -50,14 +49,12 @@ func createOrEmptyFolder(folderPath string) {
 }
 
 func InitFileFolders() {
-	ex, err := os.Executable()
-	CheckError(err)
-	SharedFilesFolderPath = filepath.Dir(ex) + "/_SharedFiles/"
+	SharedFilesFolderPath = "./_SharedFiles/"
 	if _, err := os.Stat(SharedFilesFolderPath); os.IsNotExist(err) {
 		os.Mkdir(SharedFilesFolderPath,0777)
 	}
 
-	DownloadsFolderPath = filepath.Dir(ex) + "/​_Downloads/"
+	DownloadsFolderPath = "./_Downloads/"
 	if _, err := os.Stat(DownloadsFolderPath); os.IsNotExist(err) {
 		os.Mkdir(DownloadsFolderPath,0777)
 	}

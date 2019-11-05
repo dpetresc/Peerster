@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
@@ -79,21 +80,32 @@ func (gossiper *Gossiper) handleDataRequestPacket(packet *util.GossipPacket) {
 	}
 }
 
+func checkIntegrity(hash string, data []byte) bool {
+	sha := sha256.Sum256(data[:])
+	hashToTest := hex.EncodeToString(sha[:])
+	return hashToTest == hash
+}
+
 func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 	if packet.DataReply.Destination == gossiper.Name {
 		hash := hex.EncodeToString(packet.DataReply.HashValue)
-		from := packet.DataReply.Origin
-		chunkIdentifier := DownloadIdentifier{
-			from: from,
-			hash: hash,
+		data := make([]byte, 0, len(packet.DataReply.Data))
+		data = append(data, packet.DataReply.Data...)
+
+		if checkIntegrity(hash, data) || len(data) == 0 {
+			from := packet.DataReply.Origin
+			chunkIdentifier := DownloadIdentifier{
+				from: from,
+				hash: hash,
+			}
+			gossiper.lDownloadingChunk.mutex.Lock()
+			_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
+			if ok {
+				responseChan := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
+				responseChan <- *packet.DataReply
+			}
+			gossiper.lDownloadingChunk.mutex.Unlock()
 		}
-		gossiper.lDownloadingChunk.mutex.Lock()
-		_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
-		if ok {
-			responseChan := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
-			responseChan <- *packet.DataReply
-		}
-		gossiper.lDownloadingChunk.mutex.Unlock()
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.DataReply.Destination)
 		// we have the next hop of this origin

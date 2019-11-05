@@ -80,8 +80,6 @@ func main() {
 	}
 
 	// TODO gérer erreur (log.fatal => print)
-	// TODO checker tous les make (length et capacité)
-	// TODO close tous les files
 
 	mGossiper.ListenPeers()
 }

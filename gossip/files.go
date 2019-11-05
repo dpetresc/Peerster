@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
@@ -24,12 +23,6 @@ type lockCurrentDownloading struct {
 	// DownloadIdentifier => chunk number
 	currentDownloads map[DownloadIdentifier]uint32
 	mutex sync.RWMutex
-}
-
-func checkIntegrity(hash string, data []byte) bool {
-	sha := sha256.Sum256(data[:])
-	hashToTest := hex.EncodeToString(sha[:])
-	return hashToTest == hash
 }
 
 func (gossiper *Gossiper) alreadyHaveFile(metahash string) bool {
@@ -122,9 +115,6 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 		gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = 0
 		gossiper.lCurrentDownloads.mutex.Unlock()
 
-		// number of times we tried to download a chunk and it was corrupted
-		failedAttempt := 0
-
 		for {
 			gossiper.lCurrentDownloads.mutex.RLock()
 			currChunkNumber := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
@@ -161,16 +151,15 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 				ticker := time.NewTicker(5 * time.Second)
 				select {
 				case dataReply := <-waitingChan:
+					gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
 					ticker.Stop()
+
 					hashBytes := dataReply.HashValue
 					hashToTest := hex.EncodeToString(hashBytes[:])
 					data := make([]byte, 0, len(dataReply.Data))
 					data = append(data, dataReply.Data...)
-					if checkIntegrity(hashToTest, data) {
-						gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
+					if len(data) != 0 {
 						// successful download
-						failedAttempt = 0
-
 						gossiper.lAllChunks.mutex.Lock()
 						gossiper.lAllChunks.chunks[hashToTest] = data
 						gossiper.lAllChunks.mutex.Unlock()
@@ -184,7 +173,6 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 							if int(currChunkNumber) >= totalNbChunks {
 								fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 								gossiper.reconstructFile(metahash, *packet.File)
-								//gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
 
 								// remove from current downloading list
 								gossiper.lCurrentDownloads.mutex.Lock()
@@ -193,23 +181,14 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 								return
 							}
 						}
-
-						//gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
 					} else {
-						// corrupted or empty
 						// if the data is empty we skip
-						// if it is corrupted we try again (max 5 times)
-						failedAttempt = failedAttempt + 1
-						if len(dataReply.Data) == 0 || failedAttempt >= 4{
-							// finish download
-							gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
-
-							// remove from current downloading list
-							gossiper.lCurrentDownloads.mutex.Lock()
-							delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
-							gossiper.lCurrentDownloads.mutex.Unlock()
-							return
-						}
+						// finish download
+						// remove from current downloading list
+						gossiper.lCurrentDownloads.mutex.Lock()
+						delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
+						gossiper.lCurrentDownloads.mutex.Unlock()
+						return
 					}
 				case <-ticker.C:
 					ticker.Stop()
