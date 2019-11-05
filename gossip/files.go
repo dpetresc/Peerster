@@ -16,13 +16,13 @@ type DownloadIdentifier struct {
 
 type lockDownloadingChunks struct {
 	currentDownloadingChunks map[DownloadIdentifier]chan util.DataReply
-	mutex sync.Mutex
+	mutex                    sync.Mutex
 }
 
 type lockCurrentDownloading struct {
 	// DownloadIdentifier => chunk number
 	currentDownloads map[DownloadIdentifier]uint32
-	mutex sync.RWMutex
+	mutex            sync.RWMutex
 }
 
 func (gossiper *Gossiper) alreadyHaveFile(metahash string) bool {
@@ -40,7 +40,7 @@ func (gossiper *Gossiper) isChunkAlreadyDownloaded(hash string) bool {
 }
 
 func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier, hashBytes []byte, chunkNumber uint32,
-	packet *util.Message, isMetaFile bool) (chan util.DataReply) {
+	packet *util.Message, isMetaFile bool) chan util.DataReply {
 	var waitingChan chan util.DataReply
 	gossiper.lDownloadingChunk.mutex.Lock()
 	_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
@@ -85,12 +85,57 @@ func getChunkHashes(metaFile []byte) [][]byte {
 
 func getHashAtChunkNumber(metaFile []byte, chunkNb uint32) []byte {
 	// chunkNb starting from 1
-	startIndex := (chunkNb-1)*32
-	hash := metaFile[startIndex:startIndex+32]
+	startIndex := (chunkNb - 1) * 32
+	hash := metaFile[startIndex : startIndex+32]
 	return hash
 }
 
-func (gossiper *Gossiper) startDownload(packet *util.Message){
+func (gossiper *Gossiper) incrementChunkNumber(downloadFileIdentifier DownloadIdentifier, currChunkNumber uint32) {
+	// increment current chunk number
+	gossiper.lCurrentDownloads.mutex.Lock()
+	gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = currChunkNumber + 1
+	gossiper.lCurrentDownloads.mutex.Unlock()
+}
+
+func (gossiper *Gossiper) initCurrVars(downloadingMetaFile bool, packet *util.Message, metahash string,
+	downloadFileIdentifier DownloadIdentifier, currChunkNumber uint32, from string) (string, []byte, DownloadIdentifier, int) {
+	var currHash string
+	var currHashByte []byte
+	var currChunkIdentifier DownloadIdentifier
+	var totalNbChunks int
+	if downloadingMetaFile {
+		currHashByte = *packet.Request
+		currHash = metahash
+		currChunkIdentifier = downloadFileIdentifier
+	} else {
+		gossiper.lAllChunks.mutex.RLock()
+		hashes := gossiper.lAllChunks.chunks[metahash]
+		gossiper.lAllChunks.mutex.RUnlock()
+		totalNbChunks = len(hashes) / 32
+		currHashByte = getHashAtChunkNumber(hashes, currChunkNumber)
+		currHash = hex.EncodeToString(currHashByte)
+		currChunkIdentifier = DownloadIdentifier{
+			from: from,
+			hash: currHash,
+		}
+	}
+	return currHash, currHashByte, currChunkIdentifier, totalNbChunks
+}
+
+func (gossiper *Gossiper) finishDownload(packet *util.Message, metahash string,
+	downloadFileIdentifier DownloadIdentifier, success bool) {
+	if success {
+		fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
+		gossiper.reconstructFile(metahash, *packet.File)
+	}
+
+	// remove from current downloading list
+	gossiper.lCurrentDownloads.mutex.Lock()
+	delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
+	gossiper.lCurrentDownloads.mutex.Unlock()
+}
+
+func (gossiper *Gossiper) startDownload(packet *util.Message) {
 	metahash := hex.EncodeToString((*packet.Request)[:])
 
 	if gossiper.alreadyHaveFile(metahash) {
@@ -109,7 +154,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 	_, ok := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
 	if ok {
 		//fmt.Printf("Already downloading metahash %x from %s\n", *packet.Request, from)
-		// TODO pending requests => keep track of those requests or just ignore them
+		// TODO amelioration : pending requests => keep track of those requests instead of just ignore them
 		gossiper.lCurrentDownloads.mutex.Unlock()
 	} else {
 		gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = 0
@@ -123,26 +168,8 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 
 			var waitingChan chan util.DataReply
 
-			var currHash string
-			var currHashByte []byte
-			var currChunkIdentifier DownloadIdentifier
-			var totalNbChunks int
-			if downloadingMetaFile {
-				currHashByte = *packet.Request
-				currHash = metahash
-				currChunkIdentifier = downloadFileIdentifier
-			}else {
-				gossiper.lAllChunks.mutex.RLock()
-				hashes := gossiper.lAllChunks.chunks[metahash]
-				gossiper.lAllChunks.mutex.RUnlock()
-				totalNbChunks = len(hashes) / 32
-				currHashByte = getHashAtChunkNumber(hashes, currChunkNumber)
-				currHash = hex.EncodeToString(currHashByte)
-				currChunkIdentifier = DownloadIdentifier{
-					from: from,
-					hash: currHash,
-				}
-			}
+			currHash, currHashByte, currChunkIdentifier, totalNbChunks := gossiper.initCurrVars(downloadingMetaFile,
+				packet, metahash, downloadFileIdentifier, currChunkNumber, from)
 			// check if we already have this chunk from another download
 			if !gossiper.isChunkAlreadyDownloaded(currHash) {
 				// we have to download the chunk
@@ -164,30 +191,16 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 						gossiper.lAllChunks.chunks[hashToTest] = data
 						gossiper.lAllChunks.mutex.Unlock()
 
-						// increment current chunk number
-						gossiper.lCurrentDownloads.mutex.RLock()
-						gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = currChunkNumber + 1
-						gossiper.lCurrentDownloads.mutex.RUnlock()
-
+						gossiper.incrementChunkNumber(downloadFileIdentifier, currChunkNumber)
 						if !downloadingMetaFile {
 							if int(currChunkNumber) >= totalNbChunks {
-								fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
-								gossiper.reconstructFile(metahash, *packet.File)
-
-								// remove from current downloading list
-								gossiper.lCurrentDownloads.mutex.Lock()
-								delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
-								gossiper.lCurrentDownloads.mutex.Unlock()
+								gossiper.finishDownload(packet, metahash, downloadFileIdentifier, true)
 								return
 							}
 						}
 					} else {
-						// if the data is empty we skip
-						// finish download
-						// remove from current downloading list
-						gossiper.lCurrentDownloads.mutex.Lock()
-						delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
-						gossiper.lCurrentDownloads.mutex.Unlock()
+						// if the data is empty we skip and finish download
+						gossiper.finishDownload(packet, metahash, downloadFileIdentifier, false)
 						return
 					}
 				case <-ticker.C:
@@ -195,21 +208,10 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 				}
 			} else {
 				// we have already downloaded the chunk so we need to download the next chunk
-
-				// increment current chunk number
-				gossiper.lCurrentDownloads.mutex.RLock()
-				gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = currChunkNumber + 1
-				gossiper.lCurrentDownloads.mutex.RUnlock()
-
+				gossiper.incrementChunkNumber(downloadFileIdentifier, currChunkNumber)
 				if !downloadingMetaFile {
 					if int(currChunkNumber) >= totalNbChunks {
-						fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
-						gossiper.reconstructFile(metahash, *packet.File)
-
-						// remove from current downloading list
-						gossiper.lCurrentDownloads.mutex.Lock()
-						delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
-						gossiper.lCurrentDownloads.mutex.Unlock()
+						gossiper.finishDownload(packet, metahash, downloadFileIdentifier, true)
 						return
 					}
 				}

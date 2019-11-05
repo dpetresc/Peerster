@@ -79,7 +79,5 @@ func main() {
 		}()
 	}
 
-	// TODO gérer erreur (log.fatal => print)
-
 	mGossiper.ListenPeers()
 }

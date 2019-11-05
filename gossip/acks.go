@@ -16,7 +16,6 @@ type Ack struct {
 type LockAcks struct {
 	// peer(IP:PORT) -> Ack
 	acks map[string]map[Ack]bool
-	// Attention always lock lAllMsg first before locking lAcks when we need both
 	mutex sync.RWMutex
 }
 

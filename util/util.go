@@ -1,8 +1,8 @@
 package util
 
 import (
-	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path"
@@ -18,8 +18,9 @@ var ChunksFolderPath string
 
 func CheckError(err error) {
 	if err != nil {
-		//log.Fatal(err)
-		fmt.Println(err)
+		// (log.fatal => print)
+		log.Fatal(err)
+		//fmt.Println(err)
 	}
 }
 
