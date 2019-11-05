@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"net"
 )
@@ -50,14 +49,14 @@ func (gossiper *Gossiper) rumormonger(previousAddr string, packet *util.GossipPa
 	gossiper.Peers.Mutex.RUnlock()
 	if p != "" {
 		if flippedCoin {
-			fmt.Println("FLIPPED COIN sending rumor to " + p)
+			//fmt.Println("FLIPPED COIN sending rumor to " + p)
 		}
 		gossiper.sendRumor(p, packet)
 	}
 }
 
 func (gossiper *Gossiper) sendRumor(peer string, packet *util.GossipPacket) {
-	fmt.Println("MONGERING with " + peer)
+	//fmt.Println("MONGERING with " + peer)
 	gossiper.sendPacketToPeer(peer, packet)
 	go gossiper.WaitAck(peer, packet)
 }

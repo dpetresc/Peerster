@@ -62,7 +62,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		mutex:  sync.RWMutex{},
 	}
 
-	acks := make(map[string]map[string][]Ack)
+	acks := make(map[string]map[Ack]bool)
 	lacks := LockAcks{
 		acks:  acks,
 		mutex: sync.RWMutex{},

@@ -81,13 +81,13 @@ func (gossiper *Gossiper) handleDataRequestPacket(packet *util.GossipPacket) {
 
 func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 	if packet.DataReply.Destination == gossiper.Name {
-		gossiper.lDownloadingChunk.mutex.Lock()
 		hash := hex.EncodeToString(packet.DataReply.HashValue)
 		from := packet.DataReply.Origin
 		chunkIdentifier := DownloadIdentifier{
 			from: from,
 			hash: hash,
 		}
+		gossiper.lDownloadingChunk.mutex.Lock()
 		_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
 		if ok {
 			responseChan := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]

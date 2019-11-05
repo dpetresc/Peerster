@@ -53,7 +53,7 @@ func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier,
 	_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
 	if !ok {
 		// first time requesting this chunk
-		waitingChan = make(chan util.DataReply,1)
+		waitingChan = make(chan util.DataReply)
 		gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier] = waitingChan
 	} else {
 		waitingChan = gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
@@ -128,8 +128,8 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 		for {
 			gossiper.lCurrentDownloads.mutex.RLock()
 			currChunkNumber := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
-			downloadingMetaFile := currChunkNumber == 0
 			gossiper.lCurrentDownloads.mutex.RUnlock()
+			downloadingMetaFile := currChunkNumber == 0
 
 			var waitingChan chan util.DataReply
 
@@ -161,11 +161,13 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 				ticker := time.NewTicker(5 * time.Second)
 				select {
 				case dataReply := <-waitingChan:
+					ticker.Stop()
 					hashBytes := dataReply.HashValue
 					hashToTest := hex.EncodeToString(hashBytes[:])
 					data := make([]byte, 0, len(dataReply.Data))
 					data = append(data, dataReply.Data...)
 					if checkIntegrity(hashToTest, data) {
+						gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
 						// successful download
 						failedAttempt = 0
 
@@ -182,7 +184,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 							if int(currChunkNumber) >= totalNbChunks {
 								fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 								gossiper.reconstructFile(metahash, *packet.File)
-								gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
+								//gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
 
 								// remove from current downloading list
 								gossiper.lCurrentDownloads.mutex.Lock()
@@ -192,7 +194,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message){
 							}
 						}
 
-						gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
+						//gossiper.removeDownloadingChanel(currChunkIdentifier, waitingChan)
 					} else {
 						// corrupted or empty
 						// if the data is empty we skip
@@ -271,7 +273,6 @@ func (gossiper *Gossiper) reconstructFile(metahash string, fileName string) {
 	util.CheckError(err)
 	if err == nil {
 		if !gossiper.alreadyHaveFile(metahash) {
-			// TODO garder index et downloads séparés
 			fileStruct := MyFile{
 				fileName: fileName,
 				fileSize: int64(len(fileBytes)),

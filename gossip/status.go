@@ -1,29 +1,28 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"net"
 )
 
 func (gossiper *Gossiper) handleStatusPacket(packet *util.GossipPacket, sourceAddr *net.UDPAddr) {
 	sourceAddrString := util.UDPAddrToString(sourceAddr)
-	packet.Status.PrintStatusMessage(sourceAddrString)
+	//packet.Status.PrintStatusMessage(sourceAddrString)
 	gossiper.Peers.Mutex.RLock()
 	gossiper.Peers.PrintPeers()
 	gossiper.Peers.Mutex.RUnlock()
 
-	gossiper.lAllMsg.mutex.RLock()
-	gossiper.lAcks.mutex.RLock()
-
-	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(*packet.Status)
-	if packetToRumormonger == nil && wantedStatusPacket == nil {
-		fmt.Println("IN SYNC WITH " + sourceAddrString)
-	}
-
+	gossiper.lAcks.mutex.Lock()
 	isAck := gossiper.triggerAcks(*packet.Status, sourceAddrString)
-	gossiper.lAcks.mutex.RUnlock()
+	gossiper.lAcks.mutex.Unlock()
+
+	gossiper.lAllMsg.mutex.RLock()
+	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(*packet.Status)
 	gossiper.lAllMsg.mutex.RUnlock()
+
+	if packetToRumormonger == nil && wantedStatusPacket == nil {
+		//fmt.Println("IN SYNC WITH " + sourceAddrString)
+	}
 
 	if !isAck {
 		if packetToRumormonger != nil {

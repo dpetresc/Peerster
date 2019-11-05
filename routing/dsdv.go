@@ -69,14 +69,3 @@ func AddNewPrivateMessageForGUI(key string, packet *util.PrivateMessage) {
 		LastPrivateMessages[key], packet)
 }
 
-//DSDV implements the function of the interface String
-func (dsdv *LockDsdv) String() string{
-	s := "================================================================\n"
-	s += "Origin - Next-Hop - Sequence-Number\n"
-	for origin, nexthop := range dsdv.Dsdv{
-		s += fmt.Sprintf("%s - %s - %d\n", origin, nexthop, dsdv.LastIds[origin])
-	}
-	s += "================================================================\n"
-	return s
-}
-
