@@ -121,26 +121,24 @@ func (peers *Peers) PrintPeers() {
 
 func (peers *Peers) ChooseRandomPeer(sourcePeer string, peer string) string {
 	lenMap := len(peers.PeersMap)
-	if lenMap != 0 {
-		var randIndex int
-		if lenMap > 2 {
-			randIndex = rand.Intn((lenMap-2))
-		} else {
-			randIndex = rand.Intn(lenMap)
-		}
-		var lastElem string = ""
+	numberToRemove := 0
+	if sourcePeer != "" {
+		numberToRemove = numberToRemove + 1
+	}
+	if peer != "" {
+		numberToRemove = numberToRemove + 1
+	}
+	lenMap = lenMap - numberToRemove
+	if lenMap > 0 {
+		randIndex := rand.Intn(lenMap)
 		for k := range peers.PeersMap {
+			if k == sourcePeer || k == peer {
+				continue
+			}
 			if randIndex <= 0 {
-				if k != sourcePeer && k != peer {
-					return k
-				} else if lastElem != "" {
-					return lastElem
-				}
+				return k
 			}
-			if k != sourcePeer && k != peer {
-				lastElem = k
-				randIndex = randIndex - 1
-			}
+			randIndex = randIndex - 1
 		}
 	}
 	return ""
