@@ -58,16 +58,23 @@
 														     </tr>
 														  </table>
 													</div>
-											<!--<div id="private_x" style="visibility: hidden"></div>-->
 									</div>
 				</td>
 			<tr class="space">
-				<td style=''><input type="text" id="sendIndex" placeholder="Type the name of the file to index" class="form-control"/>
-					<button onclick="sendIndex()" class="btn btn-default" id="addIndex">Index</Button></td>
+				<td style=''>
+					<input type="file" id="fileIndex" accept="audio/*,video/*,image/*" class="form-control"/>
+					<button onclick="sendIndex()" class="btn btn-default" id="addIndex">Index</Button>
+				</td>
 			</tr>
 			<tr class="space">
-				<td style=''><input type="text" id="sendRequest" style="visibility: collapse" placeholder="" class="form-control"/>
-					<button onclick="sendRequest()" class="btn btn-default" id="addRequest" style="visibility: collapse">Request</Button></td>
+				<td style=''>
+					<input type="text" id="fileRequest" placeholder="Please first select a node for the request" class="form-control"/></td>
+			</tr>
+			<tr class="space">
+				<td style=''>
+					<input type="text" id="hashRequest" placeholder="Please first select a node for the request" class="form-control"/>
+					<button onclick="sendRequest()" class="btn btn-default" id="addRequest">Request</Button>
+				</td>
 			</tr>
         </table>
     </div>

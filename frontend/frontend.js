@@ -106,11 +106,8 @@ function getNodeIdentifiers() {
                                 document.getElementById("chat").innerText = "Public Chat"
                                 document.getElementById("sendMessage").placeholder = "Type your public message here"
 
-                                // TODO
-                                document.getElementById("sendRequest").style.visibility = "collapse"
-                                document.getElementById("addRequest").style.visibility = "collapse"
-                                document.getElementById("addIndex").style.visibility = "visible"
-
+                                document.getElementById("fileRequest").placeholder = "Please first select a node for the request"
+                                document.getElementById("hashRequest").placeholder = "Please first select a node for the request"
 
                                 document.getElementById("private_" + x + "_messages").style.visibility = "collapse"
                                 document.getElementById("public_messages").style.visibility = "visible"
@@ -120,15 +117,11 @@ function getNodeIdentifiers() {
 
                                 currentChat = x.toString()
                                 document.getElementById("identifier_" + x).style.fontWeight = "bold"
-                                document.getElementById("chat").innerText = "Private Chat with " + x
+                                document.getElementById("chat").innerHTML = "Private Chat" + "<br/>" + x
                                 document.getElementById("sendMessage").placeholder = "Type your private message for " + currentChat + " here"
 
-                                // TODO
-                                document.getElementById("sendIndex").placeholder = "Type the name of the downloaded file"
-                                document.getElementById("sendRequest").placeholder = "Type metahash of the file request for " + currentChat + " here"
-                                document.getElementById("sendRequest").style.visibility = "visible"
-                                document.getElementById("addIndex").style.visibility = "collapse"
-                                document.getElementById("addRequest").style.visibility = "visible"
+                                document.getElementById("fileRequest").placeholder = "Type the name of the downloaded file"
+                                document.getElementById("hashRequest").placeholder = "Type metahash of the file request for " + currentChat + " here"
 
                                 document.getElementById("public_messages").style.visibility = "collapse"
                                 document.getElementById("private_" + x + "_messages").style.visibility = "visible"
@@ -231,17 +224,17 @@ function sendMessage() {
 }
 
 function sendIndex() {
-    var fileName = document.getElementById("sendIndex").value;
-    if (fileName != "" && currentChat == "public") {
+    var fileName = document.getElementById("fileIndex").files[0].name;
+    if (fileName != "") {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/file",
             data: {
                 "value": fileName,
-                "identifier": currentChat
+                "identifier": "public"
             },
             success: function (data, status, xhr) {
-                document.getElementById("sendIndex").value = '';
+                document.getElementById("fileIndex").value = '';
             }
         })
     } else {
@@ -250,8 +243,8 @@ function sendIndex() {
 }
 
 function sendRequest() {
-    var fileName = document.getElementById("sendIndex").value;
-    var requestHash = document.getElementById("sendRequest").value;
+    var fileName = document.getElementById("fileRequest").value;
+    var requestHash = document.getElementById("hashRequest").value;
     if (fileName != "" && requestHash != "" && currentChat != "public") {
         $.ajax({
             type: "POST",
@@ -263,17 +256,19 @@ function sendRequest() {
             },
             statusCode: {
                 401: function (data, textStatus, xhr) {
-                    document.getElementById("sendIndex").value = '';
-                    document.getElementById("sendRequest").value = '';
+                    document.getElementById("fileRequest").value = '';
+                    document.getElementById("hashRequest").value = '';
                     alert(data.responseText)
                 }
             },
             success: function (data, status, xhr) {
-                document.getElementById("sendIndex").value = '';
-                document.getElementById("sendRequest").value = '';
+                document.getElementById("fileRequest").value = '';
+                document.getElementById("hashRequest").value = '';
             }
         })
-    } else {
+    } else if(currentChat == "public") {
+        alert("Please first select a node for the request !")
+    } else {  
         alert("Must specify a filename and a request metahash !")
     }
 }
