@@ -2,7 +2,6 @@ package gossip
 
 import (
 	"github.com/dedis/protobuf"
-	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 )
 
@@ -52,8 +51,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				go gossiper.handlePrivatePacket(packetToSend)
 
 				// FOR THE GUI
-				// TODO lock private message
-				routing.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
+				gossiper.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
 			} else {
 				// "public" message
 				packetToSend := gossiper.createNewPacketToSend(packet.Text, false)

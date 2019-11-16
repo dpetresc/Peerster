@@ -8,17 +8,17 @@ import (
 func (gossiper *Gossiper) handleStatusPacket(packet *util.GossipPacket, sourceAddr *net.UDPAddr) {
 	sourceAddrString := util.UDPAddrToString(sourceAddr)
 	//packet.Status.PrintStatusMessage(sourceAddrString)
-	gossiper.Peers.Mutex.RLock()
+	gossiper.Peers.RLock()
 	gossiper.Peers.PrintPeers()
-	gossiper.Peers.Mutex.RUnlock()
+	gossiper.Peers.RUnlock()
 
-	gossiper.lAcks.mutex.Lock()
+	gossiper.lAcks.Lock()
 	isAck := gossiper.triggerAcks(*packet.Status, sourceAddrString)
-	gossiper.lAcks.mutex.Unlock()
+	gossiper.lAcks.Unlock()
 
-	gossiper.lAllMsg.mutex.RLock()
+	gossiper.lAllMsg.RLock()
 	packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(*packet.Status)
-	gossiper.lAllMsg.mutex.RUnlock()
+	gossiper.lAllMsg.RUnlock()
 
 	if packetToRumormonger == nil && wantedStatusPacket == nil {
 		//fmt.Println("IN SYNC WITH " + sourceAddrString)

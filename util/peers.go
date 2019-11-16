@@ -11,7 +11,7 @@ var LastMessagesInOrder []*RumorMessage = make([]*RumorMessage, 0)
 
 type Peers struct {
 	PeersMap map[string]bool
-	Mutex sync.RWMutex
+	sync.RWMutex
 }
 
 type PeerStatus struct {
@@ -97,8 +97,7 @@ func NewPeers(peers string) *Peers {
 
 func (peers *Peers) AddPeer(addr string) {
 	// Requires a write lock
-	_, ok := peers.PeersMap[addr]
-	if !ok {
+	if _, ok := peers.PeersMap[addr]; !ok {
 		peers.PeersMap[addr] = false
 	}
 }

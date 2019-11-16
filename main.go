@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
@@ -55,6 +56,7 @@ func main() {
 		}()
 	}
 
+	fmt.Println(rtimer)
 	if !simple && rtimer != 0 {
 		// Send route rumor
 		// 0 means disabling this feature

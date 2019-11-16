@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/dedis/protobuf"
-	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
 )
@@ -78,7 +77,7 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "GET":
-		mGossiper.Peers.Mutex.Lock()
+		mGossiper.Peers.Lock()
 		peersMap := mGossiper.Peers.PeersMap
 		if len(peersMap) > 0 {
 			peersList := make([]string, 0)
@@ -91,19 +90,19 @@ func NodesHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(peerListJson)
 		}
-		mGossiper.Peers.Mutex.Unlock()
+		mGossiper.Peers.Unlock()
 	case "POST" :
 		err := r.ParseForm()
 		util.CheckError(err)
 		value := r.Form.Get("value")
-		mGossiper.Peers.Mutex.Lock()
+		mGossiper.Peers.Lock()
 		// can't add my address to the peers
 		if value != util.UDPAddrToString(mGossiper.Address){
 			mGossiper.Peers.AddPeer(value)
 		} else {
 			http.Error(w, "Can't add own address as Peer !", http.StatusUnauthorized)
 		}
-		mGossiper.Peers.Mutex.Unlock()
+		mGossiper.Peers.Unlock()
 	}
 }
 
@@ -111,7 +110,8 @@ func PrivateMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "GET":
-		privateMsgs := routing.LastPrivateMessages
+		mGossiper.LLastPrivateMsg.Lock()
+		privateMsgs := mGossiper.LLastPrivateMsg.LastPrivateMsg
 		if len(privateMsgs) > 0 {
 			msgListJson, err := json.Marshal(privateMsgs)
 			util.CheckError(err)
@@ -119,8 +119,9 @@ func PrivateMessagesHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(msgListJson)
-			routing.LastPrivateMessages = make(map[string][]*util.PrivateMessage)
+			mGossiper.LLastPrivateMsg.LastPrivateMsg = make(map[string][]*util.PrivateMessage)
 		}
+		mGossiper.LLastPrivateMsg.Unlock()
 	}
 }
 

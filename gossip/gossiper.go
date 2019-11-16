@@ -12,7 +12,12 @@ import (
 type LockAllMsg struct {
 	allMsg map[string]*util.PeerReceivedMessages
 	// Attention always lock lAllMsg first before locking lAcks when we need both
-	mutex sync.RWMutex
+	sync.RWMutex
+}
+
+type LockLastPrivateMsg struct {
+	LastPrivateMsg map[string][]*util.PrivateMessage
+	sync.RWMutex
 }
 
 type Gossiper struct {
@@ -20,14 +25,15 @@ type Gossiper struct {
 	conn    *net.UDPConn
 	Name    string
 	// change to sync
-	Peers       *util.Peers
-	simple      bool
-	antiEntropy int
-	rtimer      int
-	ClientAddr  *net.UDPAddr
-	ClientConn  *net.UDPConn
-	lAllMsg     *LockAllMsg
-	lAcks       *LockAcks
+	Peers           *util.Peers
+	simple          bool
+	antiEntropy     int
+	rtimer          int
+	ClientAddr      *net.UDPAddr
+	ClientConn      *net.UDPConn
+	lAllMsg         *LockAllMsg
+	LLastPrivateMsg *LockLastPrivateMsg
+	lAcks           *LockAcks
 	// routing
 	LDsdv *routing.LockDsdv
 	//files
@@ -59,13 +65,15 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 	lockAllMsg := LockAllMsg{
 		allMsg: allMsg,
-		mutex:  sync.RWMutex{},
+	}
+
+	lockLastPrivateMsg := LockLastPrivateMsg{
+		LastPrivateMsg: make(map[string][]*util.PrivateMessage),
 	}
 
 	acks := make(map[string]map[Ack]chan util.StatusPacket)
 	lacks := LockAcks{
-		acks:  acks,
-		mutex: sync.RWMutex{},
+		acks: acks,
 	}
 
 	// routing
@@ -74,20 +82,16 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	// files
 	lFiles := LockFiles{
 		Files: make(map[string]*MyFile),
-		Mutex: sync.RWMutex{},
 	}
 	lDownloadingChunk := lockDownloadingChunks{
 		currentDownloadingChunks: make(map[DownloadIdentifier]chan util.DataReply),
-		mutex: sync.Mutex{},
 	}
 	lCurrentDownloads := lockCurrentDownloading{
 		currentDownloads: make(map[DownloadIdentifier]uint32),
-		mutex:            sync.RWMutex{},
 	}
 
 	lAllChunks := lockAllChunks{
 		chunks: make(map[string][]byte),
-		mutex:  sync.RWMutex{},
 	}
 
 	return &Gossiper{
@@ -101,6 +105,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		ClientAddr:        udpClientAddr,
 		ClientConn:        udpClientConn,
 		lAllMsg:           &lockAllMsg,
+		LLastPrivateMsg:   &lockLastPrivateMsg,
 		lAcks:             &lacks,
 		LDsdv:             &lDsdv,
 		lFiles:            &lFiles,
@@ -120,13 +125,23 @@ func (gossiper *Gossiper) sendPacketToPeer(peer string, packetToSend *util.Gossi
 }
 
 func (gossiper *Gossiper) sendPacketToPeers(source string, packetToSend *util.GossipPacket) {
-	gossiper.Peers.Mutex.RLock()
+	gossiper.Peers.RLock()
 	for peer := range gossiper.Peers.PeersMap {
 		if peer != source {
 			gossiper.sendPacketToPeer(peer, packetToSend)
 		}
 	}
-	gossiper.Peers.Mutex.RUnlock()
+	gossiper.Peers.RUnlock()
+}
+
+func (gossiper *Gossiper) AddNewPrivateMessageForGUI(key string, packet *util.PrivateMessage) {
+	gossiper.LLastPrivateMsg.Lock()
+	if _, ok := gossiper.LLastPrivateMsg.LastPrivateMsg[key]; !ok {
+		gossiper.LLastPrivateMsg.LastPrivateMsg[key] = make([]*util.PrivateMessage, 0)
+	}
+	gossiper.LLastPrivateMsg.LastPrivateMsg[key] = append(
+		gossiper.LLastPrivateMsg.LastPrivateMsg[key], packet)
+	gossiper.LLastPrivateMsg.Unlock()
 }
 
 func (gossiper *Gossiper) AntiEntropy() {
@@ -135,13 +150,13 @@ func (gossiper *Gossiper) AntiEntropy() {
 	for {
 		select {
 		case <-ticker.C:
-			gossiper.Peers.Mutex.RLock()
+			gossiper.Peers.RLock()
 			p := gossiper.Peers.ChooseRandomPeer("", "")
-			gossiper.Peers.Mutex.RUnlock()
+			gossiper.Peers.RUnlock()
 			if p != "" {
-				gossiper.lAllMsg.mutex.RLock()
+				gossiper.lAllMsg.RLock()
 				gossiper.SendStatusPacket(p)
-				gossiper.lAllMsg.mutex.RUnlock()
+				gossiper.lAllMsg.RUnlock()
 			}
 
 		}
@@ -166,7 +181,7 @@ func (gossiper *Gossiper) RouteRumors() {
 // Either for a client message or for a route rumor message (text="")
 // also called in clientListener
 func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) util.GossipPacket {
-	gossiper.lAllMsg.mutex.Lock()
+	gossiper.lAllMsg.Lock()
 	id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
 	packetToSend := util.GossipPacket{Rumor: &util.RumorMessage{
 		Origin: gossiper.Name,
@@ -174,6 +189,6 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 		Text:   text,
 	}}
 	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, routeRumor)
-	gossiper.lAllMsg.mutex.Unlock()
+	gossiper.lAllMsg.Unlock()
 	return packetToSend
 }

@@ -15,7 +15,7 @@ type Ack struct {
 type LockAcks struct {
 	// peer(IP:PORT) -> Ack
 	acks map[string]map[Ack]chan util.StatusPacket
-	mutex sync.RWMutex
+	sync.RWMutex
 }
 
 func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (bool, Ack, chan util.StatusPacket) {
@@ -26,13 +26,11 @@ func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (bool, 
 		Origin:     packet.Rumor.Origin,
 	}
 	isNewAck := false
-	_, ok := gossiper.lAcks.acks[peer]
-	if !ok {
+	if _, ok := gossiper.lAcks.acks[peer]; !ok {
 		gossiper.lAcks.acks[peer] = make(map[Ack]chan util.StatusPacket)
 		isNewAck = true
 	} else {
-		_, ok = gossiper.lAcks.acks[peer][ack]
-		if !ok {
+		if _, ok = gossiper.lAcks.acks[peer][ack]; !ok {
 			isNewAck = true
 		}
 	}
@@ -46,16 +44,16 @@ func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (bool, 
 
 func (gossiper *Gossiper) removeAck(peer string, ack Ack, ackChannel chan util.StatusPacket) {
 	// Requires a write lock
-	gossiper.lAcks.mutex.Lock()
+	gossiper.lAcks.Lock()
 	close(ackChannel)
 	delete(gossiper.lAcks.acks[peer], ack)
-	gossiper.lAcks.mutex.Unlock()
+	gossiper.lAcks.Unlock()
 }
 
 func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.GossipPacket) {
-	gossiper.lAcks.mutex.Lock()
+	gossiper.lAcks.Lock()
 	isNewAck, ack, ackChannel := gossiper.addAck(packet, peer)
-	gossiper.lAcks.mutex.Unlock()
+	gossiper.lAcks.Unlock()
 
 	if isNewAck {
 		ticker := time.NewTicker(10 * time.Second)
@@ -65,9 +63,9 @@ func (gossiper *Gossiper) WaitAck(sourceAddr string, peer string, packet *util.G
 		case sP := <-ackChannel:
 			gossiper.removeAck(peer, ack, ackChannel)
 
-			gossiper.lAllMsg.mutex.RLock()
+			gossiper.lAllMsg.RLock()
 			packetToRumormonger, wantedStatusPacket := gossiper.compareStatuses(sP)
-			gossiper.lAllMsg.mutex.RUnlock()
+			gossiper.lAllMsg.RUnlock()
 
 			if packetToRumormonger != nil {
 				// we have received a newer packet
@@ -96,8 +94,7 @@ func (gossiper *Gossiper) triggerAcks(sP util.StatusPacket, sourceAddrString str
 	for _, peerStatus := range sP.Want {
 		origin := peerStatus.Identifier
 		// sourceAddr
-		_, ok := gossiper.lAcks.acks[sourceAddrString]
-		if ok {
+		if _, ok := gossiper.lAcks.acks[sourceAddrString]; ok {
 			for ack := range gossiper.lAcks.acks[sourceAddrString] {
 				if ack.ID < peerStatus.NextID && ack.Origin == origin {
 					isAck = true

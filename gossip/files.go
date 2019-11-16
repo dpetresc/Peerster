@@ -16,42 +16,41 @@ type DownloadIdentifier struct {
 
 type lockDownloadingChunks struct {
 	currentDownloadingChunks map[DownloadIdentifier]chan util.DataReply
-	mutex                    sync.Mutex
+	sync.RWMutex
 }
 
 type lockCurrentDownloading struct {
 	// DownloadIdentifier => chunk number
 	currentDownloads map[DownloadIdentifier]uint32
-	mutex            sync.RWMutex
+	sync.RWMutex
 }
 
-func (gossiper *Gossiper) alreadyHaveFile(metahash string) bool {
-	gossiper.lFiles.Mutex.RLock()
-	_, ok := gossiper.lFiles.Files[metahash]
-	gossiper.lFiles.Mutex.RUnlock()
+func (gossiper *Gossiper) alreadyHaveFileName(fileName string) bool {
+	gossiper.lFiles.RLock()
+	_, ok := gossiper.lFiles.Files[fileName]
+	gossiper.lFiles.RUnlock()
 	return ok
 }
 
 func (gossiper *Gossiper) isChunkAlreadyDownloaded(hash string) bool {
-	gossiper.lAllChunks.mutex.RLock()
+	gossiper.lAllChunks.RLock()
 	_, ok := gossiper.lAllChunks.chunks[hash]
-	gossiper.lAllChunks.mutex.RUnlock()
+	gossiper.lAllChunks.RUnlock()
 	return ok
 }
 
 func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier, hashBytes []byte, chunkNumber uint32,
 	packet *util.Message, isMetaFile bool) chan util.DataReply {
 	var waitingChan chan util.DataReply
-	gossiper.lDownloadingChunk.mutex.Lock()
-	_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
-	if !ok {
+	gossiper.lDownloadingChunk.Lock()
+	if _, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]; !ok {
 		// first time requesting this chunk
 		waitingChan = make(chan util.DataReply, 100)
 		gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier] = waitingChan
 	} else {
 		waitingChan = gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
 	}
-	gossiper.lDownloadingChunk.mutex.Unlock()
+	gossiper.lDownloadingChunk.Unlock()
 	packetToSend := &util.GossipPacket{DataRequest: &util.DataRequest{
 		Origin:      gossiper.Name,
 		Destination: *packet.Destination,
@@ -68,10 +67,10 @@ func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier,
 }
 
 func (gossiper *Gossiper) removeDownloadingChanel(chunkIdentifier DownloadIdentifier, channel chan util.DataReply) {
-	gossiper.lDownloadingChunk.mutex.Lock()
+	gossiper.lDownloadingChunk.Lock()
 	close(channel)
 	delete(gossiper.lDownloadingChunk.currentDownloadingChunks, chunkIdentifier)
-	gossiper.lDownloadingChunk.mutex.Unlock()
+	gossiper.lDownloadingChunk.Unlock()
 }
 
 func getChunkHashes(metaFile []byte) [][]byte {
@@ -92,9 +91,9 @@ func getHashAtChunkNumber(metaFile []byte, chunkNb uint32) []byte {
 
 func (gossiper *Gossiper) incrementChunkNumber(downloadFileIdentifier DownloadIdentifier, currChunkNumber uint32) {
 	// increment current chunk number
-	gossiper.lCurrentDownloads.mutex.Lock()
+	gossiper.lCurrentDownloads.Lock()
 	gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = currChunkNumber + 1
-	gossiper.lCurrentDownloads.mutex.Unlock()
+	gossiper.lCurrentDownloads.Unlock()
 }
 
 func (gossiper *Gossiper) initCurrVars(downloadingMetaFile bool, packet *util.Message, metahash string,
@@ -108,9 +107,9 @@ func (gossiper *Gossiper) initCurrVars(downloadingMetaFile bool, packet *util.Me
 		currHash = metahash
 		currChunkIdentifier = downloadFileIdentifier
 	} else {
-		gossiper.lAllChunks.mutex.RLock()
+		gossiper.lAllChunks.RLock()
 		hashes := gossiper.lAllChunks.chunks[metahash]
-		gossiper.lAllChunks.mutex.RUnlock()
+		gossiper.lAllChunks.RUnlock()
 		totalNbChunks = len(hashes) / 32
 		currHashByte = getHashAtChunkNumber(hashes, currChunkNumber)
 		currHash = hex.EncodeToString(currHashByte)
@@ -130,17 +129,17 @@ func (gossiper *Gossiper) finishDownload(packet *util.Message, metahash string,
 	}
 
 	// remove from current downloading list
-	gossiper.lCurrentDownloads.mutex.Lock()
+	gossiper.lCurrentDownloads.Lock()
 	delete(gossiper.lCurrentDownloads.currentDownloads, downloadFileIdentifier)
-	gossiper.lCurrentDownloads.mutex.Unlock()
+	gossiper.lCurrentDownloads.Unlock()
 }
 
 func (gossiper *Gossiper) startDownload(packet *util.Message) {
 	metahash := hex.EncodeToString((*packet.Request)[:])
 
-	if gossiper.alreadyHaveFile(metahash) {
-		fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
-		gossiper.reconstructFile(metahash, *packet.File)
+	if gossiper.alreadyHaveFileName(*packet.File) {
+		// File name already exists, we do not overwrite it
+		fmt.Println("File name already exists, no overwrite of the file is performed")
 		return
 	}
 
@@ -150,20 +149,19 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 		hash: metahash,
 	}
 
-	gossiper.lCurrentDownloads.mutex.Lock()
-	_, ok := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
-	if ok {
+	gossiper.lCurrentDownloads.Lock()
+	if _, ok := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]; ok {
 		//fmt.Printf("Already downloading metahash %x from %s\n", *packet.Request, from)
 		// TODO amelioration : pending requests => keep track of those requests instead of just ignore them
-		gossiper.lCurrentDownloads.mutex.Unlock()
+		gossiper.lCurrentDownloads.Unlock()
 	} else {
 		gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = 0
-		gossiper.lCurrentDownloads.mutex.Unlock()
+		gossiper.lCurrentDownloads.Unlock()
 
 		for {
-			gossiper.lCurrentDownloads.mutex.RLock()
+			gossiper.lCurrentDownloads.RLock()
 			currChunkNumber := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
-			gossiper.lCurrentDownloads.mutex.RUnlock()
+			gossiper.lCurrentDownloads.RUnlock()
 			downloadingMetaFile := currChunkNumber == 0
 
 			var waitingChan chan util.DataReply
@@ -187,9 +185,9 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 					data = append(data, dataReply.Data...)
 					if len(data) != 0 {
 						// successful download
-						gossiper.lAllChunks.mutex.Lock()
+						gossiper.lAllChunks.Lock()
 						gossiper.lAllChunks.chunks[hashToTest] = data
-						gossiper.lAllChunks.mutex.Unlock()
+						gossiper.lAllChunks.Unlock()
 
 						gossiper.incrementChunkNumber(downloadFileIdentifier, currChunkNumber)
 						if !downloadingMetaFile {
@@ -224,45 +222,45 @@ func (gossiper *Gossiper) reconstructFile(metahash string, fileName string) {
 	filePath := util.DownloadsFolderPath + fileName
 	if _, err := os.Stat(filePath); err == nil {
 		// File name already exists, we do not overwrite it
-		// Could be the same metahash or another
-		//fmt.Println("File name already exists, no overwrite of the file is performed")
+		// Should not happen as we already check it above
+		fmt.Println("File name already exists, no overwrite of the file is performed")
 		return
 	}
 
-	gossiper.lAllChunks.mutex.RLock()
+	gossiper.lAllChunks.RLock()
 	hashes, _ := gossiper.lAllChunks.chunks[metahash]
-	gossiper.lAllChunks.mutex.RUnlock()
+	gossiper.lAllChunks.RUnlock()
 	chunkHashes := getChunkHashes(hashes)
 
 	fileBytes := make([]byte, 0)
 	for _, hashBytes := range chunkHashes {
 		hash := hex.EncodeToString(hashBytes)
 
-		gossiper.lAllChunks.mutex.RLock()
-		data, ok := gossiper.lAllChunks.chunks[hash]
-		if !ok {
+		gossiper.lAllChunks.RLock()
+		if data, ok := gossiper.lAllChunks.chunks[hash]; !ok {
 			// should never happen
-			//fmt.Println("PROBLEM WITH DOWNLOAD !")
-			//os.Exit(1)
+			fmt.Println("PROBLEM WITH DOWNLOAD !")
+			os.Exit(1)
+		} else {
+			gossiper.lAllChunks.RUnlock()
+			fileBytes = append(fileBytes, data...)
 		}
-		gossiper.lAllChunks.mutex.RUnlock()
-		fileBytes = append(fileBytes, data...)
 	}
 	file, err := os.Create(filePath)
 	util.CheckError(err)
 	_, err = file.Write(fileBytes)
 	util.CheckError(err)
 	if err == nil {
-		if !gossiper.alreadyHaveFile(metahash) {
+		if !gossiper.alreadyHaveFileName(metahash) {
 			fileStruct := MyFile{
 				fileName: fileName,
 				fileSize: int64(len(fileBytes)),
 				Metafile: chunkHashes,
 				metahash: metahash,
 			}
-			gossiper.lFiles.Mutex.Lock()
-			gossiper.lFiles.Files[metahash] = &fileStruct
-			gossiper.lFiles.Mutex.Unlock()
+			gossiper.lFiles.Lock()
+			gossiper.lFiles.Files[fileName] = &fileStruct
+			gossiper.lFiles.Unlock()
 		}
 	}
 	err = file.Close()

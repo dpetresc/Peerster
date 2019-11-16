@@ -13,8 +13,9 @@ import (
 
 type LockFiles struct {
 	// indexed and downloaded files
+	// fileName => MyFile
 	Files map[string]*MyFile
-	Mutex sync.RWMutex
+	sync.RWMutex
 }
 
 type MyFile struct {
@@ -26,7 +27,7 @@ type MyFile struct {
 
 type lockAllChunks struct {
 	chunks map[string][]byte
-	mutex sync.RWMutex
+	sync.RWMutex
 }
 
 func getInfoFile(f *os.File) (int64, int) {
@@ -44,15 +45,14 @@ func (gossiper *Gossiper) createHashes(f *os.File) (int64, [][]byte, []byte) {
 	hashes := make([]byte, 0, 32*nbChunks)
 	for i := int64(0); i < fileSizeBytes; i += int64(util.MaxUDPSize) {
 		chunk := make([]byte, util.MaxUDPSize)
-		n, err := f.ReadAt(chunk, int64(i))
-		if err != nil && err != io.EOF {
+		if n, err := f.ReadAt(chunk, int64(i)); err != nil && err != io.EOF {
 			util.CheckError(err)
 		} else {
 			shaBytes := sha256.Sum256(chunk[:n])
 			sha := hex.EncodeToString(shaBytes[:])
-			gossiper.lAllChunks.mutex.Lock()
+			gossiper.lAllChunks.Lock()
 			gossiper.lAllChunks.chunks[sha] = chunk[:n]
-			gossiper.lAllChunks.mutex.Unlock()
+			gossiper.lAllChunks.Unlock()
 			chunkHashes = append(chunkHashes, shaBytes[:])
 			hashes = append(hashes, shaBytes[:]...)
 		}
@@ -69,9 +69,9 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 	fileIdBytes := sha256.Sum256(hashes)
 	metahash := hex.EncodeToString(fileIdBytes[:])
 
-	gossiper.lAllChunks.mutex.Lock()
+	gossiper.lAllChunks.Lock()
 	gossiper.lAllChunks.chunks[metahash] = hashes
-	gossiper.lAllChunks.mutex.Unlock()
+	gossiper.lAllChunks.Unlock()
 
 	myFile := &MyFile{
 		fileName: fileName,
@@ -80,8 +80,8 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 		metahash: metahash,
 	}
 	fmt.Println("Metahash : " + metahash)
-	gossiper.lFiles.Mutex.Lock()
-	gossiper.lFiles.Files[metahash] = myFile
-	gossiper.lFiles.Mutex.Unlock()
+	gossiper.lFiles.Lock()
+	gossiper.lFiles.Files[fileName] = myFile
+	gossiper.lFiles.Unlock()
 	return myFile
 }

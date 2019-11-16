@@ -3,7 +3,6 @@ package gossip
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 )
 
@@ -14,7 +13,7 @@ func (gossiper *Gossiper) handlePrivatePacket(packet *util.GossipPacket) {
 		packet.Private.PrintPrivateMessage()
 
 		// FOR THE GUI
-		routing.AddNewPrivateMessageForGUI(packet.Private.Origin, packet.Private)
+		gossiper.AddNewPrivateMessageForGUI(packet.Private.Origin, packet.Private)
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.Private.Destination)
 		// we have the next hop of this origin
@@ -38,9 +37,9 @@ func (gossiper *Gossiper) sendRequestedChunk(packet *util.GossipPacket) {
 	hashValue := packet.DataRequest.HashValue
 	chunkId := hex.EncodeToString(hashValue)
 
-	gossiper.lAllChunks.mutex.RLock()
+	gossiper.lAllChunks.RLock()
 	data, ok := gossiper.lAllChunks.chunks[chunkId]
-	gossiper.lAllChunks.mutex.RUnlock()
+	gossiper.lAllChunks.RUnlock()
 
 	if !ok {
 		data = make([]byte, 0)
@@ -98,13 +97,11 @@ func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 				from: from,
 				hash: hash,
 			}
-			gossiper.lDownloadingChunk.mutex.Lock()
-			_, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
-			if ok {
-				responseChan := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]
+			gossiper.lDownloadingChunk.RLock()
+			if responseChan, ok := gossiper.lDownloadingChunk.currentDownloadingChunks[chunkIdentifier]; ok {
 				responseChan <- *packet.DataReply
 			}
-			gossiper.lDownloadingChunk.mutex.Unlock()
+			gossiper.lDownloadingChunk.RUnlock()
 		}
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.DataReply.Destination)

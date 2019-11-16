@@ -15,9 +15,9 @@ func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) 
 	// In case simple flag is set, we add manually the RelayPeerAddr of the packets afterwards
 	if !gossiper.simple {
 		if sourceAddr != gossiper.Address {
-			gossiper.Peers.Mutex.Lock()
+			gossiper.Peers.Lock()
 			gossiper.Peers.AddPeer(util.UDPAddrToString(sourceAddr))
-			gossiper.Peers.Mutex.Unlock()
+			gossiper.Peers.Unlock()
 		}
 	}
 	util.CheckError(err)
@@ -56,12 +56,12 @@ func (gossiper *Gossiper) ListenPeers() {
 
 func (gossiper *Gossiper) handleSimplePacket(packet *util.GossipPacket) {
 	packet.Simple.PrintSimpleMessage()
-	gossiper.Peers.Mutex.Lock()
+	gossiper.Peers.Lock()
 	if packet.Simple.RelayPeerAddr != util.UDPAddrToString(gossiper.Address) {
 		gossiper.Peers.AddPeer(packet.Simple.RelayPeerAddr)
 	}
 	gossiper.Peers.PrintPeers()
-	gossiper.Peers.Mutex.Unlock()
+	gossiper.Peers.Unlock()
 	packetToSend := util.GossipPacket{Simple: &util.SimpleMessage{
 		OriginalName:  packet.Simple.OriginalName,
 		RelayPeerAddr: util.UDPAddrToString(gossiper.Address),
