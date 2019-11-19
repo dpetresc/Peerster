@@ -87,7 +87,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		currentDownloadingChunks: make(map[DownloadIdentifier]chan util.DataReply),
 	}
 	lCurrentDownloads := lockCurrentDownloading{
-		currentDownloads: make(map[DownloadIdentifier]uint32),
+		currentDownloads: make(map[DownloadIdentifier]uint64),
 	}
 
 	lAllChunks := lockAllChunks{

@@ -3,7 +3,6 @@ package util
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 	"sync"
 )
 
@@ -82,7 +81,9 @@ func (p *PeerReceivedMessages) setNextID(id uint32) {
 func NewPeers(peers string) *Peers {
 	var peersArray []string
 	if peers != "" {
-		peersArray = strings.Split(peers, ",")
+		// TODO remove if it works
+		//peersArray = strings.Split(peers, ",")
+		peersArray = GetNonEmptyElementsFromString(peers, ",")
 	} else {
 		peersArray = []string{}
 	}
@@ -98,7 +99,7 @@ func NewPeers(peers string) *Peers {
 func (peers *Peers) AddPeer(addr string) {
 	// Requires a write lock
 	if _, ok := peers.PeersMap[addr]; !ok {
-		peers.PeersMap[addr] = false
+		peers.PeersMap[addr] = true
 	}
 }
 

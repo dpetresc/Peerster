@@ -8,6 +8,8 @@ type Message struct {
 	Destination *string
 	File *string
 	Request *[]byte
+	Keywords *string
+	Budget   *uint64
 }
 
 func (clientMessage *Message) PrintClientMessage() {
@@ -26,6 +28,8 @@ type GossipPacket struct {
 	Private *PrivateMessage
 	DataRequest *DataRequest
 	DataReply *DataReply
+	SearchRequest *SearchRequest
+	SearchReply *SearchReply
 }
 
 /******************** SIMPLE MESSAGE ********************/
@@ -86,7 +90,8 @@ func (peerMessage *PrivateMessage) PrintPrivateMessage() {
 
 /******************** CHUNK AND METAFILE REQUESTS ********************/
 type DataRequest struct {
-	Origin string
+	Origin string				// check is already done in server_handler
+
 	Destination string
 	HopLimit uint32
 	HashValue []byte
@@ -99,4 +104,27 @@ type DataReply struct {
 	HopLimit uint32
 	HashValue []byte
 	Data []byte
+}
+
+/******************** SEARCH REQUEST ********************/
+type SearchRequest struct {
+	Origin string
+	Budget uint64
+	Keywords []string
+}
+
+/******************** SEARCH REPLY ********************/
+type SearchReply struct {
+	Origin string
+	Destination string
+	HopLimit uint32
+	Results []*SearchResult
+}
+
+/******************** SEARCH RESULT ********************/
+type SearchResult struct {
+	FileName string
+	MetafileHash []byte
+	ChunkMap []uint64
+	ChunkCount uint64
 }

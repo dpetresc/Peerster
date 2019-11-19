@@ -6,7 +6,14 @@ import (
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
+	"strconv"
 )
+
+func sendMessagetoClient(message *util.Message) {
+	packetBytes, err := protobuf.Encode(message)
+	util.CheckError(err)
+	mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+}
 
 func RumorMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
@@ -30,19 +37,19 @@ func RumorMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		dest := r.Form.Get("identifier")
 		var message util.Message
 		if dest == "public" {
+			// public message
 			message = util.Message{
 				Text:      messageText,
 				Destination: nil,
 			}
 		} else {
+			// private message
 			message = util.Message{
 				Text:      messageText,
 				Destination: &dest,
 			}
 		}
-		packetBytes, err := protobuf.Encode(&message)
-		util.CheckError(err)
-		mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+		sendMessagetoClient(&message)
 	}
 }
 
@@ -139,9 +146,7 @@ func FileHandler(w http.ResponseWriter, r *http.Request) {
 				Destination: nil,
 				File: &fileName,
 			}
-			packetBytes, err := protobuf.Encode(&message)
-			util.CheckError(err)
-			mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+			sendMessagetoClient(&message)
 		} else {
 			request := r.Form.Get("request")
 			requestBytes, err := hex.DecodeString(request)
@@ -159,11 +164,39 @@ func FileHandler(w http.ResponseWriter, r *http.Request) {
 					File: &fileName,
 					Request: &requestBytes,
 				}
-				packetBytes, err := protobuf.Encode(&message)
-				util.CheckError(err)
-				mGossiper.ClientConn.WriteToUDP(packetBytes, mGossiper.ClientAddr)
+				sendMessagetoClient(&message)
 			}
 		}
+	}
+}
+
+func SearchHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "POST" :
+		err := r.ParseForm()
+		util.CheckError(err)
+		keywordsStr := r.Form.Get("value")
+		budgetStr := r.Form.Get("budget")
+		keywords := util.GetNonEmptyElementsFromString(keywordsStr, ",")
+		if len(keywords) == 0 {
+			http.Error(w, "Please enter at least one non-empty keyword !", http.StatusUnauthorized)
+			return
+		}
+		message := util.Message{
+			Keywords: &keywordsStr,
+		}
+		if budgetStr == "" {
+			message.Budget = nil
+		} else {
+			budget, err := strconv.ParseUint(budgetStr,10, 64)
+			if err != nil {
+				http.Error(w, "Please enter an uint64 budget !", http.StatusUnauthorized)
+				return
+			}
+			message.Budget = &budget
+		}
+		sendMessagetoClient(&message)
 	}
 }
 

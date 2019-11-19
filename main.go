@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
@@ -56,7 +55,6 @@ func main() {
 		}()
 	}
 
-	fmt.Println(rtimer)
 	if !simple && rtimer != 0 {
 		// Send route rumor
 		// 0 means disabling this feature
@@ -74,6 +72,7 @@ func main() {
 			http.HandleFunc("/identifier", IdentifiersHandler)
 			http.HandleFunc("/private", PrivateMessagesHandler)
 			http.HandleFunc("/file", FileHandler)
+			http.HandleFunc("/search", SearchHandler)
 			for {
 				err := http.ListenAndServe("localhost:8080", nil)
 				util.CheckError(err)

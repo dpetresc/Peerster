@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 )
 
 var MaxUDPSize int = 8192
@@ -24,6 +25,17 @@ func CheckError(err error) {
 
 func UDPAddrToString(addr *net.UDPAddr) string {
 	return addr.IP.String() + ":" + strconv.Itoa(addr.Port)
+}
+
+func GetNonEmptyElementsFromString(s string, separator string) []string {
+	elementArray := strings.Split(s, ",")
+	nonEmptyElementArray := make([]string, 0, len(elementArray))
+	for _, elem := range elementArray {
+		if elem != "" {
+			nonEmptyElementArray = append(nonEmptyElementArray, elem)
+		}
+	}
+	return nonEmptyElementArray
 }
 
 /********** FOR FILES **********/

@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
 )
@@ -37,8 +38,30 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 		}}
 		gossiper.sendPacketToPeers("", &packetToSend)
 	} else {
-		// we already checked that we have one of the four combination of flag
-		if packet.Text != "" {
+		// we already checked that we have a correct combination of flag
+		if packet.Keywords != nil {
+			// search request
+			keywords := util.GetNonEmptyElementsFromString(*packet.Keywords, ",")
+			if len(keywords) > 0 {
+				var searchPacket *util.GossipPacket
+				searchPacket = &util.GossipPacket{SearchRequest: &util.SearchRequest{
+					Origin: gossiper.Name,
+					//Budget: *packet.Budget,
+					Keywords: keywords,
+				}}
+				if packet.Budget == nil {
+					searchPacket.SearchRequest.Budget = 2
+					go gossiper.handleSearchRequestPacket(searchPacket, false)
+				} else {
+					searchPacket.SearchRequest.Budget = *packet.Budget
+					go gossiper.handleSearchRequestPacket(searchPacket, true)
+				}
+			} else {
+				// check is already done in server_handler
+				// but not in command line mode
+				fmt.Println("Empty keywords")
+			}
+		} else if packet.Text != "" {
 			if packet.Destination != nil {
 				// private message
 				packetToSend := &util.GossipPacket{Private: &util.PrivateMessage{

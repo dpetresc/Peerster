@@ -10,7 +10,6 @@ function getPeers() {
             if (data != {}) {
                 data.sort();
                 if (data.length > 0) {
-                    document.getElementById("knownPeers").style.visibility = "visible";
                     var list = document.getElementById("peers")
                     while (list.hasChildNodes()) {
                         list.removeChild(list.lastChild);
@@ -179,6 +178,7 @@ $.ajax({
 
 /****************************** POST ******************************/
 
+// Add peer
 function addNode() {
     var newNode = document.getElementById("sendNode").value;
     if (verifyIpAndPort(newNode)) {
@@ -223,6 +223,7 @@ function sendMessage() {
     }
 }
 
+// Send an index file request
 function sendIndex() {
     var fileName = document.getElementById("fileIndex").files[0].name;
     if (fileName != "") {
@@ -242,7 +243,8 @@ function sendIndex() {
     }
 }
 
-function sendRequest() {
+// Send a file download request
+function sendDownload() {
     var fileName = document.getElementById("fileRequest").value;
     var requestHash = document.getElementById("hashRequest").value;
     if (fileName != "" && requestHash != "" && currentChat != "public") {
@@ -270,6 +272,36 @@ function sendRequest() {
         alert("Please first select a node for the request !")
     } else {  
         alert("Must specify a filename and a request metahash !")
+    }
+}
+
+// Send a search file request
+function sendSearch() {
+    var searchKeywords = document.getElementById("searchRequest").value;
+    var searchBudget = document.getElementById("budgetRequest").value;
+    if (searchKeywords != "") {
+        $.ajax({
+            type: "POST",
+            url: "http://localhost:8080/search",
+            data: {
+                "value": searchKeywords,
+                "budget": searchBudget,
+            },
+            statusCode: {
+                401: function (data, textStatus, xhr) {
+                    document.getElementById("searchRequest").value = '';
+                    document.getElementById("budgetRequest").value = '';
+                    alert(data.responseText)
+                }
+            },
+            success: function (data, status, xhr) {
+                document.getElementById("searchRequest").value = '';
+                document.getElementById("budgetRequest").value = '';
+            }
+        })
+    } else {
+        document.getElementById("budgetRequest").value = '';
+        alert("Please specify at least one keyword for the search !")
     }
 }
 

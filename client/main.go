@@ -15,6 +15,8 @@ var dest string
 var msg string
 var file string
 var request string
+var keywords string
+var budget int64
 
 var clientAddrStr string
 
@@ -24,6 +26,8 @@ func init() {
 	flag.StringVar(&msg, "msg", "", "message to be send")
 	flag.StringVar(&file, "file", "", "file to be indexed by the gossiper")
 	flag.StringVar(&request, "request", "", "​file hexadecimal MetaHash")
+	flag.StringVar(&keywords, "keywords", "", "keywords for the file search")
+	flag.Int64Var(&budget, "budget", -1, "budget for the file search (optional)")
 
 	flag.Parse()
 }
@@ -40,17 +44,21 @@ func logBadRequestHashFormat(){
 
 func isCorrectArgumentCombination() bool{
 	// Flags: dest + msg + file + request
-	// exercise 3 combination: (dest + msg) ou msg
+	// hw2 exercise 3 combination: (dest + msg) ou msg
 	if (dest != "" && msg != "" && file == "" && request == "") ||
 		(dest == "" && msg != "" && file == "" && request == ""){
 		return true
 	}
-	// exercise 4 combination: file
+	// hw2 exercise 4 combination: file
 	if dest == "" && msg == "" && file != "" && request == ""{
 		return true
 	}
-	// exercise 6 combination: dest + file + request
+	// hw2 exercise 6 combination: dest + file + request
 	if dest != "" && msg == "" && file != "" && request != ""{
+		return true
+	}
+	// hw3 search request
+	if keywords != "" {
 		return true
 	}
 	return false
@@ -90,10 +98,19 @@ func main() {
 		Destination: &dest,
 		File: &file,
 		Request: &requestBytes,
+		Keywords: &keywords,
+	}
+
+	if budget != -1 {
+		uintBudget := uint64(budget)
+		packetToSend.Budget = &uintBudget
 	}
 
 	if dest == "" {
 		packetToSend.Destination = nil
+	}
+	if keywords == "" {
+		packetToSend.Keywords = nil
 	}
 
 	packetByte, err := protobuf.Encode(&packetToSend)

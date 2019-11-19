@@ -48,6 +48,10 @@ func (gossiper *Gossiper) ListenPeers() {
 			go gossiper.handleDataRequestPacket(packet)
 		} else if packet.DataReply != nil {
 			go gossiper.handleDataReplyPacket(packet)
+		} else if packet.SearchRequest != nil {
+			go gossiper.handleSearchRequestPacket(packet, true)
+		} else if packet.SearchReply != nil {
+			go gossiper.handleSearchReplyPacket(packet)
 		} else {
 			//log.Fatal("Packet contains neither Status nor Rumor and gossiper wasn't used with simple flag !")
 		}

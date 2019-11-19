@@ -21,7 +21,7 @@ type lockDownloadingChunks struct {
 
 type lockCurrentDownloading struct {
 	// DownloadIdentifier => chunk number
-	currentDownloads map[DownloadIdentifier]uint32
+	currentDownloads map[DownloadIdentifier]uint64
 	sync.RWMutex
 }
 
@@ -39,7 +39,7 @@ func (gossiper *Gossiper) isChunkAlreadyDownloaded(hash string) bool {
 	return ok
 }
 
-func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier, hashBytes []byte, chunkNumber uint32,
+func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier, hashBytes []byte, chunkNumber uint64,
 	packet *util.Message, isMetaFile bool) chan util.DataReply {
 	var waitingChan chan util.DataReply
 	gossiper.lDownloadingChunk.Lock()
@@ -82,14 +82,14 @@ func getChunkHashes(metaFile []byte) [][]byte {
 	return chunks
 }
 
-func getHashAtChunkNumber(metaFile []byte, chunkNb uint32) []byte {
+func getHashAtChunkNumber(metaFile []byte, chunkNb uint64) []byte {
 	// chunkNb starting from 1
 	startIndex := (chunkNb - 1) * 32
 	hash := metaFile[startIndex : startIndex+32]
 	return hash
 }
 
-func (gossiper *Gossiper) incrementChunkNumber(downloadFileIdentifier DownloadIdentifier, currChunkNumber uint32) {
+func (gossiper *Gossiper) incrementChunkNumber(downloadFileIdentifier DownloadIdentifier, currChunkNumber uint64) {
 	// increment current chunk number
 	gossiper.lCurrentDownloads.Lock()
 	gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = currChunkNumber + 1
@@ -97,7 +97,7 @@ func (gossiper *Gossiper) incrementChunkNumber(downloadFileIdentifier DownloadId
 }
 
 func (gossiper *Gossiper) initCurrVars(downloadingMetaFile bool, packet *util.Message, metahash string,
-	downloadFileIdentifier DownloadIdentifier, currChunkNumber uint32, from string) (string, []byte, DownloadIdentifier, int) {
+	downloadFileIdentifier DownloadIdentifier, currChunkNumber uint64, from string) (string, []byte, DownloadIdentifier, int) {
 	var currHash string
 	var currHashByte []byte
 	var currChunkIdentifier DownloadIdentifier
@@ -126,6 +126,9 @@ func (gossiper *Gossiper) finishDownload(packet *util.Message, metahash string,
 	if success {
 		fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
 		gossiper.reconstructFile(metahash, *packet.File)
+	} else {
+		// keep track of the unfinished download internally
+		gossiper.trackUnsucessfullDownload(metahash, *packet.File, downloadFileIdentifier)
 	}
 
 	// remove from current downloading list
@@ -257,6 +260,7 @@ func (gossiper *Gossiper) reconstructFile(metahash string, fileName string) {
 				fileSize: int64(len(fileBytes)),
 				Metafile: chunkHashes,
 				metahash: metahash,
+				nbChunks: uint64(len(chunkHashes)),
 			}
 			gossiper.lFiles.Lock()
 			gossiper.lFiles.Files[fileName] = &fileStruct
@@ -265,4 +269,47 @@ func (gossiper *Gossiper) reconstructFile(metahash string, fileName string) {
 	}
 	err = file.Close()
 	util.CheckError(err)
+}
+
+func (gossiper *Gossiper) trackUnsucessfullDownload(metahash string, fileName string, downloadFileIdentifier DownloadIdentifier) {
+	gossiper.lCurrentDownloads.RLock()
+	nbDownloadedChunks := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]
+	gossiper.lCurrentDownloads.RUnlock()
+
+	if nbDownloadedChunks > 0 {
+		// no chunks were downloaded
+		nbDownloadedChunks = nbDownloadedChunks - 1
+		gossiper.lAllChunks.RLock()
+		hashes, _ := gossiper.lAllChunks.chunks[metahash]
+		gossiper.lAllChunks.RUnlock()
+		chunkHashes := getChunkHashes(hashes)
+
+		chunkHashesDownloaded := chunkHashes[:nbDownloadedChunks]
+		fileBytes := make([]byte, 0)
+		for _, hashBytes := range chunkHashesDownloaded {
+			hash := hex.EncodeToString(hashBytes)
+
+			gossiper.lAllChunks.RLock()
+			if data, ok := gossiper.lAllChunks.chunks[hash]; !ok {
+				// should never happen
+				fmt.Println("PROBLEM WITH DOWNLOAD !")
+				os.Exit(1)
+			} else {
+				gossiper.lAllChunks.RUnlock()
+				fileBytes = append(fileBytes, data...)
+			}
+		}
+		if !gossiper.alreadyHaveFileName(metahash) {
+			fileStruct := MyFile{
+				fileName: fileName,
+				fileSize: -1,
+				Metafile: chunkHashes,
+				metahash: metahash,
+				nbChunks: nbDownloadedChunks,
+			}
+			gossiper.lFiles.Lock()
+			gossiper.lFiles.Files[fileName] = &fileStruct
+			gossiper.lFiles.Unlock()
+		}
+	}
 }

@@ -22,7 +22,9 @@ type MyFile struct {
 	fileName string
 	fileSize int64
 	Metafile [][]byte
+	// TODO string => []byte
 	metahash string
+	nbChunks uint64
 }
 
 type lockAllChunks struct {
@@ -78,6 +80,7 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 		fileSize: fileSizeBytes,
 		Metafile: chunkHashes,
 		metahash: metahash,
+		nbChunks: uint64(len(chunkHashes)),
 	}
 	fmt.Println("Metahash : " + metahash)
 	gossiper.lFiles.Lock()

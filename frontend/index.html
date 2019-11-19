@@ -18,10 +18,6 @@
 </head>
 
 <body style="font-family:courier,arial,helvetica;">
-	<!--[if lt IE 7]>
-            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="#">upgrade your browser</a> to improve your experience.</p>
-		<![endif]-->
-
 	<div class="grid-container">
 		<div class="item1">
 			<h1 id="title" class="title">Peerster GUI</h1>
@@ -47,7 +43,7 @@
 				<button onclick="sendMessage()" class="btn btn-default" id="addMessage">Send</Button>
 		</div>
 		<div class="item4">
-			<h3 id="knownPeers" style="visibility: hidden">Known Peers</h3>
+			<h3 id="knownPeers">Known Peers</h3>
 			<ul id="peers" style="width:100%"></ul>
 			<input type="text" id="sendNode" placeholder="Add a new peer here (IP:PORT)" class="form-control" />
 			<button onclick="addNode()" class="btn btn-default" id="addNode">Add</Button>
@@ -67,7 +63,15 @@
 				class="form-control" />
 			<input type="text" id="hashRequest" placeholder="Please first select a node for the request"
 				class="form-control" />
-			<button onclick="sendRequest()" class="btn btn-default" id="addRequest">Request</Button>
+			<button onclick="sendDownload()" class="btn btn-default" id="addRequest">Request</Button>
+		</div>
+		<div class="item8">
+			<h3>Search File</h3>
+			<input type="text" id="searchRequest" placeholder="Enter comma-separated keywords (kw1,kw2)"
+				class="form-control" />
+			<input type="text" id="budgetRequest" placeholder="Enter the budget (default 2)"
+				class="form-control" />
+			<button onclick="sendSearch()" class="btn btn-default" id="addSearch">Search</Button>
 		</div>
 	</div>
 
