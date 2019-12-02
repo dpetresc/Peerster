@@ -10,6 +10,7 @@ import (
 )
 
 type DownloadIdentifier struct {
+	// On peut avoir une seule fois à la fois
 	from string
 	hash string
 }
@@ -24,6 +25,13 @@ type lockCurrentDownloading struct {
 	currentDownloads map[DownloadIdentifier]uint64
 	sync.RWMutex
 }
+
+type LockUncompletedFiles struct {
+	// currently downloading files or finished downloading file but incomplete
+	IncompleteFiles map[string]map[DownloadIdentifier]*MyFile
+	sync.RWMutex
+}
+
 
 func (gossiper *Gossiper) alreadyHaveFileName(fileName string) bool {
 	gossiper.lFiles.RLock()
@@ -83,7 +91,6 @@ func getChunkHashes(metaFile []byte) [][]byte {
 }
 
 func getHashAtChunkNumber(metaFile []byte, chunkNb uint64) []byte {
-	// TODO changer cette méthode, elle ne sert plus
 	// chunkNb starting from 1
 	startIndex := (chunkNb - 1) * 32
 	hash := metaFile[startIndex : startIndex+32]
@@ -127,6 +134,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 
 	if gossiper.alreadyHaveFileName(*packet.File) {
 		// File name already exists, we do not overwrite it
+		// Because we can not have more than one file with the same name
 		fmt.Println("File name already exists, no overwrite of the file is performed")
 		return
 	}
@@ -140,7 +148,6 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 	gossiper.lCurrentDownloads.Lock()
 	if _, ok := gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier]; ok {
 		//fmt.Printf("Already downloading metahash %x from %s\n", *packet.Request, from)
-		// TODO amelioration : pending requests => keep track of those requests instead of just ignore them
 		gossiper.lCurrentDownloads.Unlock()
 	} else {
 		gossiper.lCurrentDownloads.currentDownloads[downloadFileIdentifier] = 0
@@ -177,33 +184,10 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 						gossiper.lAllChunks.chunks[hashToTest] = data
 						gossiper.lAllChunks.Unlock()
 
-						if downloadingMetaFile {
-							if !gossiper.alreadyHaveFileName(*packet.File) {
-								chunkHashes := getChunkHashes(data)
-								fileStruct := MyFile{
-									fileName: *packet.File,
-									fileSize: -1,
-									Metafile: chunkHashes,
-									metahash: metahash,
-									nbChunks: 0,
-								}
-								gossiper.lFiles.Lock()
-								gossiper.lFiles.Files[*packet.File] = &fileStruct
-								gossiper.lFiles.Unlock()
-							}else {
-								return
-							}
-						}else {
-							gossiper.lFiles.Lock()
-							gossiper.lFiles.Files[*packet.File].nbChunks = currChunkNumber
-							gossiper.lFiles.Unlock()
-
-							if int(currChunkNumber) >= totalNbChunks {
-								gossiper.finishDownload(packet, metahash, downloadFileIdentifier, true)
-								return
-							}
+						if gossiper.updateFileStructures(downloadingMetaFile, data, packet,
+							metahash, downloadFileIdentifier, currChunkNumber, totalNbChunks) {
+							return
 						}
-						gossiper.incrementWaitingChunkNumber(downloadFileIdentifier, currChunkNumber)
 					} else {
 						// if the data is empty we skip and finish download
 						gossiper.finishDownload(packet, metahash, downloadFileIdentifier, false)
@@ -213,24 +197,57 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 					ticker.Stop()
 				}
 			} else {
-				if !downloadingMetaFile {
-					if int(currChunkNumber) >= totalNbChunks {
-						gossiper.finishDownload(packet, metahash, downloadFileIdentifier, true)
-						return
-					}
-				}
 				// we have already downloaded the chunk so we need to download the next chunk
-				gossiper.incrementWaitingChunkNumber(downloadFileIdentifier, currChunkNumber)
+				gossiper.lAllChunks.RLock()
+				data, _ := gossiper.lAllChunks.chunks[currHash]
+				gossiper.lAllChunks.RUnlock()
+				if gossiper.updateFileStructures(downloadingMetaFile, data, packet,
+					metahash, downloadFileIdentifier, currChunkNumber, totalNbChunks) {
+					return
+				}
 			}
 		}
 	}
+}
+
+func (gossiper *Gossiper) updateFileStructures(downloadingMetaFile bool, data []byte, packet *util.Message,
+	metahash string, downloadFileIdentifier DownloadIdentifier, currChunkNumber uint64, totalNbChunks int) bool {
+	if downloadingMetaFile {
+		chunkHashes := getChunkHashes(data)
+		fileStruct := MyFile{
+			fileName: *packet.File,
+			fileSize: -1,
+			Metafile: chunkHashes,
+			metahash: metahash,
+			nbChunks: 0,
+		}
+		// We can not have several same downloadFileIdentifier at the same time
+		// If we already have one we need to override it because it was an old (incomplete) download
+		gossiper.lUncompletedFiles.Lock()
+		if _, ok := gossiper.lUncompletedFiles.IncompleteFiles[*packet.File]; !ok {
+			gossiper.lUncompletedFiles.IncompleteFiles[*packet.File] = make(map[DownloadIdentifier]*MyFile)
+		}
+		gossiper.lUncompletedFiles.IncompleteFiles[*packet.File][downloadFileIdentifier] = &fileStruct
+		gossiper.lUncompletedFiles.Unlock()
+	} else {
+		gossiper.lUncompletedFiles.Lock()
+		gossiper.lUncompletedFiles.IncompleteFiles[*packet.File][downloadFileIdentifier].nbChunks = currChunkNumber
+		gossiper.lUncompletedFiles.Unlock()
+
+		if int(currChunkNumber) >= totalNbChunks {
+			gossiper.finishDownload(packet, metahash, downloadFileIdentifier, true)
+			return true
+		}
+	}
+	gossiper.incrementWaitingChunkNumber(downloadFileIdentifier, currChunkNumber)
+	return false
 }
 
 func (gossiper *Gossiper) finishDownload(packet *util.Message, metahash string,
 	downloadFileIdentifier DownloadIdentifier, success bool) {
 	if success {
 		fmt.Printf("RECONSTRUCTED file %s\n", *packet.File)
-		gossiper.reconstructFile(metahash, *packet.File)
+		gossiper.reconstructFile(metahash, *packet.File, downloadFileIdentifier)
 	}
 
 	// remove from current downloading list
@@ -239,7 +256,7 @@ func (gossiper *Gossiper) finishDownload(packet *util.Message, metahash string,
 	gossiper.lCurrentDownloads.Unlock()
 }
 
-func (gossiper *Gossiper) reconstructFile(metahash string, fileName string) {
+func (gossiper *Gossiper) reconstructFile(metahash string, fileName string, downloadFileIdentifier DownloadIdentifier) {
 	filePath := util.DownloadsFolderPath + fileName
 	if _, err := os.Stat(filePath); err == nil {
 		// File name already exists, we do not overwrite it
@@ -272,18 +289,20 @@ func (gossiper *Gossiper) reconstructFile(metahash string, fileName string) {
 	_, err = file.Write(fileBytes)
 	util.CheckError(err)
 	if err == nil {
-		if !gossiper.alreadyHaveFileName(fileName) {
-			fileStruct := MyFile{
-				fileName: fileName,
-				fileSize: int64(len(fileBytes)),
-				Metafile: chunkHashes,
-				metahash: metahash,
-				nbChunks: uint64(len(chunkHashes)),
-			}
-			gossiper.lFiles.Lock()
-			gossiper.lFiles.Files[fileName] = &fileStruct
-			gossiper.lFiles.Unlock()
+		fileStruct := MyFile{
+			fileName: fileName,
+			fileSize: int64(len(fileBytes)),
+			Metafile: chunkHashes,
+			metahash: metahash,
+			nbChunks: uint64(len(chunkHashes)),
 		}
+		gossiper.lFiles.Lock()
+		gossiper.lFiles.Files[fileName] = &fileStruct
+		gossiper.lFiles.Unlock()
+
+		gossiper.lUncompletedFiles.Lock()
+		delete(gossiper.lUncompletedFiles.IncompleteFiles[fileName], downloadFileIdentifier)
+		gossiper.lUncompletedFiles.Unlock()
 	}
 	err = file.Close()
 	util.CheckError(err)

@@ -38,6 +38,7 @@ type Gossiper struct {
 	LDsdv *routing.LockDsdv
 	//files
 	lFiles            *LockFiles
+	lUncompletedFiles *LockUncompletedFiles
 	lDownloadingChunk *lockDownloadingChunks
 	lCurrentDownloads *lockCurrentDownloading
 	lAllChunks        *lockAllChunks
@@ -83,12 +84,16 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	lFiles := LockFiles{
 		Files: make(map[string]*MyFile),
 	}
+	lUncompletedFiles := LockUncompletedFiles{
+		IncompleteFiles: make(map[string]map[DownloadIdentifier]*MyFile),
+	}
 	lDownloadingChunk := lockDownloadingChunks{
 		currentDownloadingChunks: make(map[DownloadIdentifier]chan util.DataReply),
 	}
 	lCurrentDownloads := lockCurrentDownloading{
 		currentDownloads: make(map[DownloadIdentifier]uint64),
 	}
+
 	lAllChunks := lockAllChunks{
 		chunks: make(map[string][]byte),
 	}
@@ -108,6 +113,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAcks:             &lacks,
 		LDsdv:             &lDsdv,
 		lFiles:            &lFiles,
+		lUncompletedFiles: &lUncompletedFiles,
 		lDownloadingChunk: &lDownloadingChunk,
 		lCurrentDownloads: &lCurrentDownloads,
 		lAllChunks:        &lAllChunks,

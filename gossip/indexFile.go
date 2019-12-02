@@ -12,7 +12,7 @@ import (
 )
 
 type LockFiles struct {
-	// indexed and downloaded files
+	// indexed and successfully downloaded files
 	// fileName => MyFile
 	Files map[string]*MyFile
 	sync.RWMutex
