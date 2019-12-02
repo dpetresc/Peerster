@@ -13,9 +13,9 @@ type searchRequestStatus struct {
 
 func (gossiper *Gossiper) handleSearchRequestPacket(packet *util.GossipPacket, budgetSpecified bool) {
 	// TODO
+	// TODO check equality in less than 0.5 seconds
 	fmt.Println(packet.SearchRequest.Budget)
 	gossiper.searchFile(packet.SearchRequest.Keywords)
-	// TODO check equality in less than 0.5 seconds
 	gossiper.redistributeSearchRequest(packet)
 }
 
@@ -42,7 +42,7 @@ func (gossiper *Gossiper) searchFile(keywords []string) {
 			/*metadata := gossiper.lFiles.Files[file]
 			result := util.SearchResult{
 				FileName:     metadata.fileName,
-				MetafileHash: ,
+				MetafileHash: hex.DecodeString,
 				ChunkMap:     nil,
 				ChunkCount:   0,
 			}
@@ -78,6 +78,7 @@ func (gossiper *Gossiper) createPacketsToDistribute(budgetToDistribute uint64, n
 }
 
 func (gossiper *Gossiper) redistributeSearchRequest(packet *util.GossipPacket) {
+	// DON'T REDISTRIBUTE TO THE SOURCE OF THE PACKET
 	budgetToDistribute := packet.SearchRequest.Budget - 1
 	if budgetToDistribute > 0 {
 		gossiper.Peers.RLock()

@@ -22,7 +22,6 @@ type MyFile struct {
 	fileName string
 	fileSize int64
 	Metafile [][]byte
-	// TODO string => []byte
 	metahash string
 	nbChunks uint64
 }

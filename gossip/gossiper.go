@@ -89,7 +89,6 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	lCurrentDownloads := lockCurrentDownloading{
 		currentDownloads: make(map[DownloadIdentifier]uint64),
 	}
-
 	lAllChunks := lockAllChunks{
 		chunks: make(map[string][]byte),
 	}
