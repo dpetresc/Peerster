@@ -8,7 +8,9 @@ import (
 	"io"
 	"math"
 	"os"
+	"strings"
 	"sync"
+	"time"
 )
 
 type LockFiles struct {
@@ -28,6 +30,13 @@ type MyFile struct {
 
 type lockAllChunks struct {
 	chunks map[string][]byte
+	sync.RWMutex
+}
+
+type lockCurrentPublish struct {
+	// id of TLC message => peers from wich it has received the acks
+	acksPeers         map[uint32][]string
+	majorityTrigger map[uint32]chan bool
 	sync.RWMutex
 }
 
@@ -87,8 +96,66 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 	gossiper.lFiles.Unlock()
 
 	if gossiper.hw3ex2 {
-		// TODO
+		txPublish := util.TxPublish{
+			Name:         fileName,
+			Size:         fileSizeBytes,
+			MetafileHash: fileIdBytes[:],
+		}
+		blockPublish := util.BlockPublish{
+			PrevHash:    [32]byte{},
+			Transaction: txPublish,
+		}
+		packetToSend := gossiper.createNewTLCMessageToSend(blockPublish)
+		fmt.Printf("UNCONFIRMED GOSSIP origin %s ID %d file name %s size %d metahash %s\n",
+			gossiper.Name, packetToSend.TLCMessage.ID, fileName, fileSizeBytes, metahash)
+		go gossiper.rumormonger("", "", &packetToSend, false)
+		go gossiper.stubbornTLCMessage(&packetToSend)
 	}
 
 	return myFile
+}
+
+func (gossiper *Gossiper) stubbornTLCMessage(packet *util.GossipPacket) {
+	ticker := time.NewTicker(time.Duration(gossiper.stubbornTimeout) * time.Second)
+	gossiper.lCurrentPublish.RLock()
+	majorityTriggerChan := gossiper.lCurrentPublish.majorityTrigger[packet.TLCMessage.ID]
+	gossiper.lCurrentPublish.RUnlock()
+	for {
+		select {
+		case <-ticker.C:
+			go gossiper.rumormonger("", "", packet, false)
+		case <-majorityTriggerChan:
+			ticker.Stop()
+			close(majorityTriggerChan)
+
+			gossiper.lAllMsg.Lock()
+			id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
+			packetToSend := util.GossipPacket{
+				TLCMessage: &util.TLCMessage{
+					Origin:      gossiper.Name,
+					ID:          id,
+					Confirmed:   int(packet.TLCMessage.ID),
+					TxBlock:     packet.TLCMessage.TxBlock,
+					VectorClock: packet.TLCMessage.VectorClock,
+					Fitness:     packet.TLCMessage.Fitness,
+				},
+			}
+			gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, false)
+			gossiper.lAllMsg.Unlock()
+
+			gossiper.lCurrentPublish.Lock()
+			if peers, ok := gossiper.lCurrentPublish.acksPeers[packet.TLCMessage.ID]; ok {
+				fmt.Printf("RE-BROADCAST ID %d WITNESSES %s\n", packet.TLCMessage.ID, strings.Join(peers, ","))
+
+				go gossiper.rumormonger("", "", &packetToSend, false)
+
+				delete(gossiper.lCurrentPublish.majorityTrigger, packet.TLCMessage.ID)
+				delete(gossiper.lCurrentPublish.acksPeers, packet.TLCMessage.ID)
+				gossiper.lCurrentPublish.Unlock()
+				return
+			}
+			// concurrency
+			gossiper.lCurrentPublish.Unlock()
+		}
+	}
 }

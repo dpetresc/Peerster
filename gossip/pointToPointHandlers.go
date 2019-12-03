@@ -202,3 +202,44 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 		}
 	}
 }
+
+// TLCAck
+func (gossiper *Gossiper) handleAckPacket(packet *util.GossipPacket) {
+	if packet.Ack.Destination == gossiper.Name {
+		gossiper.lCurrentPublish.Lock()
+		if peers, ok := gossiper.lCurrentPublish.acksPeers[packet.Ack.ID]; ok {
+			if len(gossiper.lCurrentPublish.acksPeers[packet.Ack.ID]) <= int(gossiper.N)/2 {
+				alreadyAcked := false
+				for _,peer := range peers {
+					if packet.Ack.Origin == peer {
+						alreadyAcked = true
+						break
+					}
+				}
+				if !alreadyAcked {
+					gossiper.lCurrentPublish.acksPeers[packet.Ack.ID] = append(gossiper.lCurrentPublish.acksPeers[packet.Ack.ID], packet.Ack.Origin)
+					if len(gossiper.lCurrentPublish.acksPeers[packet.Ack.ID]) > int(gossiper.N)/2 {
+						gossiper.lCurrentPublish.majorityTrigger[packet.Ack.ID] <- true
+					}
+				}
+			}
+		}
+		gossiper.lCurrentPublish.Unlock()
+	} else {
+		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.Ack.Destination)
+		// we have the next hop of this origin
+		if nextHop != "" {
+			hopValue := packet.Ack.HopLimit
+			if hopValue > 0 {
+				packetToForward := &util.GossipPacket{Ack: &util.TLCAck{
+					Origin:      packet.Ack.Origin,
+					ID:          packet.Ack.ID,
+					Text:        packet.Ack.Text,
+					Destination: packet.Ack.Destination,
+					HopLimit:    hopValue - 1,
+				},}
+				gossiper.sendPacketToPeer(nextHop, packetToForward)
+			}
+		}
+	}
+}

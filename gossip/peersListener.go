@@ -52,6 +52,10 @@ func (gossiper *Gossiper) ListenPeers() {
 			go gossiper.handleSearchRequestPacket(packet, sourceAddr)
 		} else if packet.SearchReply != nil {
 			go gossiper.handleSearchReplyPacket(packet)
+		} else if packet.TLCMessage != nil {
+			go gossiper.handleTLCMessagePacket(packet, sourceAddr)
+		} else if packet.Ack != nil {
+			go gossiper.handleAckPacket(packet)
 		} else {
 			//log.Fatal("Packet contains neither Status nor Rumor and gossiper wasn't used with simple flag !")
 		}

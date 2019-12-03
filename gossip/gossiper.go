@@ -49,7 +49,9 @@ type Gossiper struct {
 	N               uint64
 	hopLimitTLC     uint32
 	stubbornTimeout int
-	hw3ex2 bool
+	hw3ex2          bool
+	lCurrentPublish *lockCurrentPublish
+	// hw3 part 3
 	hw3ex3 bool
 }
 
@@ -118,6 +120,11 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		Matches:         make(map[FileSearchIdentifier]*MatchStatus),
 	}
 
+	lCurrentPublish := &lockCurrentPublish{
+		acksPeers: make(map[uint32][]string),
+		majorityTrigger:      make(map[uint32]chan bool),
+	}
+
 	return &Gossiper{
 		Address:              udpAddr,
 		conn:                 udpConn,
@@ -142,8 +149,9 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		N:                    N,
 		hopLimitTLC:          hopLimitTLC,
 		stubbornTimeout:      stubbornTimeout,
-		hw3ex2: hw3ex2,
-		hw3ex3: hw3ex3,
+		hw3ex2:               hw3ex2,
+		hw3ex3:               hw3ex3,
+		lCurrentPublish:      lCurrentPublish,
 	}
 }
 
@@ -222,5 +230,31 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	}}
 	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, routeRumor)
 	gossiper.lAllMsg.Unlock()
+	return packetToSend
+}
+
+// When indexing creates new BlockPublish contained in a TLCMessage
+func (gossiper *Gossiper) createNewTLCMessageToSend(blockPublish util.BlockPublish) util.GossipPacket {
+	gossiper.lAllMsg.Lock()
+	id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
+	packetToSend := util.GossipPacket{
+		TLCMessage: &util.TLCMessage{
+			Origin:      gossiper.Name,
+			ID:          id,
+			Confirmed:   -1,
+			TxBlock:     blockPublish,
+			VectorClock: nil,
+			Fitness:     0,
+		},
+	}
+	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, false)
+	gossiper.lAllMsg.Unlock()
+
+	// Update internal structure
+	gossiper.lCurrentPublish.Lock()
+	gossiper.lCurrentPublish.acksPeers[id] = make([]string, 0)
+	gossiper.lCurrentPublish.acksPeers[id] = append(gossiper.lCurrentPublish.acksPeers[id], gossiper.Name)
+	gossiper.lCurrentPublish.majorityTrigger[id] = make(chan bool)
+	gossiper.lCurrentPublish.Unlock()
 	return packetToSend
 }

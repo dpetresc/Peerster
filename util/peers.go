@@ -20,7 +20,7 @@ type PeerStatus struct {
 
 type PeerReceivedMessages struct {
 	PeerStatus PeerStatus
-	Received   []*RumorMessage
+	Received   []*GossipPacket
 }
 
 func (peerStatus *PeerStatus) GetPeerStatusAsStr() string {
@@ -32,25 +32,27 @@ func (p *PeerReceivedMessages) AddMessage(packet *GossipPacket, id uint32, route
 	// Requires a write lock
 	var added bool = false
 	if int(id) == (len(p.Received) + 1) {
-		p.Received = append(p.Received, packet.Rumor)
+		p.Received = append(p.Received, packet)
 		added = true
 	} else if int(id) <= len(p.Received) {
 		if p.Received[(int(id) - 1)] != nil {
 			added = true
 		}
-		p.Received[(int(id) - 1)] = packet.Rumor
+		p.Received[(int(id) - 1)] = packet
 	} else if int(id) > len(p.Received) {
 		nbToAdd := int(id) - len(p.Received) - 1
 		for i := 0; i < nbToAdd; i++ {
 			p.Received = append(p.Received, nil)
 		}
-		p.Received = append(p.Received, packet.Rumor)
+		p.Received = append(p.Received, packet)
 		added = true
 	}
 	// check if a new message was added
 	// don't add route rumor messages so that they won't be display in the gui
 	if added  && !routeRumor {
-		LastMessagesInOrder = append(LastMessagesInOrder, packet.Rumor)
+		if packet.Rumor != nil {
+			LastMessagesInOrder = append(LastMessagesInOrder, packet.Rumor)
+		}
 	}
 	p.setNextID(p.findNextID())
 }
@@ -66,7 +68,7 @@ func (p *PeerReceivedMessages) findNextID() uint32 {
 	return firstNil + 1
 }
 
-func (p *PeerReceivedMessages) FindPacketAt(index uint32) *RumorMessage {
+func (p *PeerReceivedMessages) FindPacketAt(index uint32) *GossipPacket {
 	return p.Received[int(index)]
 }
 
@@ -81,8 +83,6 @@ func (p *PeerReceivedMessages) setNextID(id uint32) {
 func NewPeers(peers string) *Peers {
 	var peersArray []string
 	if peers != "" {
-		// TODO remove if it works
-		//peersArray = strings.Split(peers, ",")
 		peersArray = GetNonEmptyElementsFromString(peers, ",")
 	} else {
 		peersArray = []string{}
