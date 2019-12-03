@@ -85,5 +85,10 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 	gossiper.lFiles.Lock()
 	gossiper.lFiles.Files[fileName] = myFile
 	gossiper.lFiles.Unlock()
+
+	if gossiper.hw3ex2 {
+		// TODO
+	}
+
 	return myFile
 }

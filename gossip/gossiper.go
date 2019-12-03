@@ -45,9 +45,16 @@ type Gossiper struct {
 	// search requests
 	lRecentSearchRequest *LockRecentSearchRequest
 	lSearchMatches       *LockSearchMatches
+	// hw3 part 2
+	N               uint64
+	hopLimitTLC     uint32
+	stubbornTimeout int
+	hw3ex2 bool
+	hw3ex3 bool
 }
 
-func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
+func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int,
+	N uint64, hopLimitTLC uint32, stubbornTimeout int, hw3ex2 bool, hw3ex3 bool) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -108,7 +115,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	lSearchMatches := LockSearchMatches{
 		currNbFullMatch: 0,
-		Matches: make(map[FileSearchIdentifier]*MatchStatus),
+		Matches:         make(map[FileSearchIdentifier]*MatchStatus),
 	}
 
 	return &Gossiper{
@@ -132,6 +139,11 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllChunks:           &lAllChunks,
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
+		N:                    N,
+		hopLimitTLC:          hopLimitTLC,
+		stubbornTimeout:      stubbornTimeout,
+		hw3ex2: hw3ex2,
+		hw3ex3: hw3ex3,
 	}
 }
 
