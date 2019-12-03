@@ -28,7 +28,7 @@ func UDPAddrToString(addr *net.UDPAddr) string {
 }
 
 func GetNonEmptyElementsFromString(s string, separator string) []string {
-	elementArray := strings.Split(s, ",")
+	elementArray := strings.Split(s, separator)
 	nonEmptyElementArray := make([]string, 0, len(elementArray))
 	for _, elem := range elementArray {
 		if elem != "" {

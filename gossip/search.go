@@ -1,22 +1,93 @@
 package gossip
 
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
+	"math/rand"
+	"net"
 	"regexp"
+	"strings"
+	"sync"
+	"time"
 )
 
-type searchRequestStatus struct {
-	currSearchRequest string
+var fullMatchThreshold uint64 = 2
+var maxBudget uint64 = 32
 
+type searchRequestIdentifier struct {
+	Origin string
+	Keywords string
 }
 
-func (gossiper *Gossiper) handleSearchRequestPacket(packet *util.GossipPacket, budgetSpecified bool) {
-	// TODO
-	// TODO check equality in less than 0.5 seconds
-	fmt.Println(packet.SearchRequest.Budget)
-	gossiper.searchFile(packet.SearchRequest.Keywords)
-	gossiper.redistributeSearchRequest(packet)
+type LockRecentSearchRequest struct {
+	// keep track of the recent search requests
+	Requests map[searchRequestIdentifier]bool
+	sync.RWMutex
+}
+
+type FileSearchIdentifier struct {
+	Filename string
+	Metahash string
+}
+
+type MatchStatus struct {
+	chunksDistribution map[uint64][]string
+	totalNbChunk uint64
+}
+
+type LockSearchMatches struct {
+	currNbFullMatch uint64
+	Matches map[FileSearchIdentifier]*MatchStatus
+	sync.RWMutex
+}
+
+func (gossiper *Gossiper) removeSearchReqestWhenTimeout(searchRequestId searchRequestIdentifier) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	select {
+	case <-ticker.C:
+		gossiper.lRecentSearchRequest.Lock()
+		delete(gossiper.lRecentSearchRequest.Requests, searchRequestId)
+		gossiper.lRecentSearchRequest.Unlock()
+	}
+}
+
+func (gossiper *Gossiper) handleSearchRequestPacket(packet *util.GossipPacket, sourceAddr *net.UDPAddr) {
+	// check equality in less than 0.5 seconds
+	var sourceAddrString string
+	if sourceAddr != nil {
+		sourceAddrString = util.UDPAddrToString(sourceAddr)
+	}else {
+		sourceAddrString = ""
+	}
+	gossiper.lRecentSearchRequest.RLock()
+	searchRequestId := searchRequestIdentifier{
+		Origin:   packet.SearchRequest.Origin,
+		Keywords: strings.Join(packet.SearchRequest.Keywords, ","),
+	}
+	if _, ok := gossiper.lRecentSearchRequest.Requests[searchRequestId]; !ok {
+		gossiper.lRecentSearchRequest.RUnlock()
+		go gossiper.removeSearchReqestWhenTimeout(searchRequestId)
+
+		if packet.SearchRequest.Origin != gossiper.Name {
+			results := gossiper.searchFiles(packet.SearchRequest.Keywords)
+			if len(results) > 0 {
+				searchReply := util.SearchReply{
+					Origin:      gossiper.Name,
+					Destination: packet.SearchRequest.Origin,
+					HopLimit:    util.HopLimit,
+					Results:     results,
+				}
+				gossiper.handleSearchReplyPacket(&util.GossipPacket{
+					SearchReply:   &searchReply,
+				})
+			}
+		}
+		gossiper.redistributeSearchRequest(packet, sourceAddrString)
+	} else {
+		gossiper.lRecentSearchRequest.RUnlock()
+	}
 }
 
 func createRegexp(keywords []string) *regexp.Regexp{
@@ -30,29 +101,68 @@ func createRegexp(keywords []string) *regexp.Regexp{
 	return regex
 }
 
-func (gossiper *Gossiper) searchFile(keywords []string) {
-	// TODO changer également la manière dont j'indexe les files
-	// pour indexer ceux qui ne sont pas encore totalement dowloadé
+func (gossiper *Gossiper) addMatchingFile(metadata *MyFile,
+	matchingfile []*util.SearchResult) []*util.SearchResult {
+	metahash, err := hex.DecodeString(metadata.metahash)
+	util.CheckError(err)
+	fmt.Println(metadata.nbChunks)
+	chunkMap := make([]uint64, 0, metadata.nbChunks)
+	for i, _ := range metadata.Metafile {
+		chunkMap = append(chunkMap, uint64(i+1))
+	}
+	result := util.SearchResult{
+		FileName:     metadata.fileName,
+		MetafileHash: metahash,
+		ChunkMap:     chunkMap,
+		ChunkCount:   uint64(len(metadata.Metafile)),
+	}
+	matchingfile = append(matchingfile, &result)
+	return matchingfile
+}
+
+func (gossiper *Gossiper) searchFiles(keywords []string) []*util.SearchResult{
 	regex := createRegexp(keywords)
-	matchingfile := make([]util.SearchResult, 0)
+	matchingfile := make([]*util.SearchResult, 0)
+	matchingfileMap := make(map[FileSearchIdentifier]bool)
 	gossiper.lFiles.RLock()
+	// completed downloads
 	for file := range gossiper.lFiles.Files {
 		if matched := regex.MatchString(file); matched {
-			// TODO
-			/*metadata := gossiper.lFiles.Files[file]
-			result := util.SearchResult{
-				FileName:     metadata.fileName,
-				MetafileHash: hex.DecodeString,
-				ChunkMap:     nil,
-				ChunkCount:   0,
+			metadata := gossiper.lFiles.Files[file]
+
+			fSId := FileSearchIdentifier{
+				Filename: metadata.fileName,
+				Metahash: metadata.metahash,
 			}
-			matchingfile = append(matchingfile, file)*/
+			matchingfileMap[fSId] = true
+			matchingfile = gossiper.addMatchingFile(metadata, matchingfile)
 		}
 	}
 	gossiper.lFiles.RUnlock()
-	if len(matchingfile) > 0 {
-		// TODO
+
+	gossiper.lUncompletedFiles.RLock()
+	for file := range gossiper.lUncompletedFiles.IncompleteFiles {
+		if matched := regex.MatchString(file); matched {
+			files := gossiper.lUncompletedFiles.IncompleteFiles[file]
+			for downloadId := range files {
+				metadata := gossiper.lUncompletedFiles.IncompleteFiles[file][downloadId]
+
+				fSId := FileSearchIdentifier{
+					Filename: metadata.fileName,
+					Metahash: metadata.metahash,
+				}
+				if _, ok := matchingfileMap[fSId]; ok {
+					// already have complete file no need to add incomplete result
+					continue
+				} else {
+					matchingfile = gossiper.addMatchingFile(metadata, matchingfile)
+				}
+			}
+		}
 	}
+	gossiper.lUncompletedFiles.RUnlock()
+
+	return matchingfile
 }
 
 func (gossiper *Gossiper) createPacketsToDistribute(budgetToDistribute uint64, nbNeighbors uint64, packet *util.GossipPacket) (uint64, *util.GossipPacket, *util.GossipPacket) {
@@ -77,15 +187,26 @@ func (gossiper *Gossiper) createPacketsToDistribute(budgetToDistribute uint64, n
 	return surplusBudget, packetSurplus, packetBase
 }
 
-func (gossiper *Gossiper) redistributeSearchRequest(packet *util.GossipPacket) {
-	// DON'T REDISTRIBUTE TO THE SOURCE OF THE PACKET
+func (gossiper *Gossiper) redistributeSearchRequest(packet *util.GossipPacket, sourceAddr string) {
+	var neighbors []string
+	var nbNeighbors uint64 = 0
+	gossiper.Peers.RLock()
+	for neighbor := range gossiper.Peers.PeersMap {
+		if neighbor != sourceAddr{
+			neighbors = append(neighbors, neighbor)
+			nbNeighbors += 1
+		}
+	}
+	gossiper.Peers.RUnlock()
+
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(int(nbNeighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
+
 	budgetToDistribute := packet.SearchRequest.Budget - 1
 	if budgetToDistribute > 0 {
-		gossiper.Peers.RLock()
-		nbNeighbors := uint64(len(gossiper.Peers.PeersMap))
 		if nbNeighbors > 0 {
 			surplusNeighbor, packetSurplus, packetBase := gossiper.createPacketsToDistribute(budgetToDistribute, nbNeighbors, packet)
-			for neighbor := range gossiper.Peers.PeersMap {
+			for _, neighbor := range neighbors {
 				if surplusNeighbor == 0 {
 					if packetBase == nil {
 						return
@@ -97,10 +218,5 @@ func (gossiper *Gossiper) redistributeSearchRequest(packet *util.GossipPacket) {
 				}
 			}
 		}
-		gossiper.Peers.RUnlock()
 	}
-}
-
-func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
-	// TODO
 }

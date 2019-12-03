@@ -49,7 +49,7 @@ func (gossiper *Gossiper) ListenPeers() {
 		} else if packet.DataReply != nil {
 			go gossiper.handleDataReplyPacket(packet)
 		} else if packet.SearchRequest != nil {
-			go gossiper.handleSearchRequestPacket(packet, true)
+			go gossiper.handleSearchRequestPacket(packet, sourceAddr)
 		} else if packet.SearchReply != nil {
 			go gossiper.handleSearchReplyPacket(packet)
 		} else {

@@ -28,6 +28,7 @@ type lockCurrentDownloading struct {
 
 type LockUncompletedFiles struct {
 	// currently downloading files or finished downloading file but incomplete
+	// filename => download identifier
 	IncompleteFiles map[string]map[DownloadIdentifier]*MyFile
 	sync.RWMutex
 }
@@ -61,14 +62,14 @@ func (gossiper *Gossiper) initWaitingChannel(chunkIdentifier DownloadIdentifier,
 	gossiper.lDownloadingChunk.Unlock()
 	packetToSend := &util.GossipPacket{DataRequest: &util.DataRequest{
 		Origin:      gossiper.Name,
-		Destination: *packet.Destination,
+		Destination: chunkIdentifier.from,
 		HopLimit:    util.HopLimit,
 		HashValue:   hashBytes,
 	}}
 	if isMetaFile {
-		fmt.Printf("DOWNLOADING metafile of %s from %s\n", *packet.File, *packet.Destination)
+		fmt.Printf("DOWNLOADING metafile of %s from %s\n", *packet.File, chunkIdentifier.from)
 	} else {
-		fmt.Printf("DOWNLOADING %s chunk %d from %s\n", *packet.File, chunkNumber, *packet.Destination)
+		fmt.Printf("DOWNLOADING %s chunk %d from %s\n", *packet.File, chunkNumber, chunkIdentifier.from)
 	}
 	go gossiper.handleDataRequestPacket(packetToSend)
 	return waitingChan
@@ -113,7 +114,10 @@ func (gossiper *Gossiper) initCurrVars(downloadingMetaFile bool, packet *util.Me
 	if downloadingMetaFile {
 		currHashByte = *packet.Request
 		currHash = metahash
-		currChunkIdentifier = downloadFileIdentifier
+		currChunkIdentifier = DownloadIdentifier{
+			from: from,
+			hash: downloadFileIdentifier.hash,
+		}
 	} else {
 		gossiper.lAllChunks.RLock()
 		hashes := gossiper.lAllChunks.chunks[metahash]
@@ -161,6 +165,37 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 
 			var waitingChan chan util.DataReply
 
+			if downloadFileIdentifier.from == "" {
+				gossiper.lSearchMatches.RLock()
+				fileSearchIdentifier := FileSearchIdentifier{
+					Filename: *packet.File,
+					Metahash: metahash,
+				}
+				if matchStatus, ok := gossiper.lSearchMatches.Matches[fileSearchIdentifier]; !ok {
+					// can't happen with the gui
+					fmt.Println("Haven't search file/metahash before. Please try again after doing it")
+					gossiper.lSearchMatches.RUnlock()
+					gossiper.finishDownload(packet, metahash, downloadFileIdentifier, false)
+					return
+				}else {
+					chunkWanted := currChunkNumber
+					if downloadingMetaFile {
+						// if the metafile is wanted request to a peer that has the first chunk
+						chunkWanted = uint64(1)
+					}
+					peersHavingChunk, ok := matchStatus.chunksDistribution[chunkWanted];
+					if !ok || len(peersHavingChunk) == 0 {
+						// the search request haven't finished (no SEARCH FINISHED printed)
+						// => incomplete download
+						gossiper.lSearchMatches.RUnlock()
+						gossiper.finishDownload(packet, metahash, downloadFileIdentifier, false)
+						return
+					} else {
+						from = peersHavingChunk[0]
+					}
+				}
+				gossiper.lSearchMatches.RUnlock()
+			}
 			currHash, currHashByte, currChunkIdentifier, totalNbChunks := gossiper.initCurrVars(downloadingMetaFile,
 				packet, metahash, downloadFileIdentifier, currChunkNumber, from)
 			// check if we already have this chunk from another download
@@ -190,6 +225,7 @@ func (gossiper *Gossiper) startDownload(packet *util.Message) {
 						}
 					} else {
 						// if the data is empty we skip and finish download
+						// should not happen for the case when we download after a search request
 						gossiper.finishDownload(packet, metahash, downloadFileIdentifier, false)
 						return
 					}

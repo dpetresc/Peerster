@@ -1,6 +1,9 @@
 package util
 
-import "fmt"
+import (
+	"encoding/hex"
+	"fmt"
+)
 
 /******************** CLIENT MESSAGE ********************/
 type Message struct {
@@ -127,4 +130,16 @@ type SearchResult struct {
 	MetafileHash []byte
 	ChunkMap []uint64
 	ChunkCount uint64
+}
+
+func (searchResult *SearchResult) PrintSearchMatch(origin string) {
+	var s string = ""
+	s += fmt.Sprintf("FOUND match %s at %s metafile=%s chunks=", searchResult.FileName,
+		origin, hex.EncodeToString(searchResult.MetafileHash))
+	for _, chunkNb := range searchResult.ChunkMap[:len(searchResult.ChunkMap)-1] {
+		s += fmt.Sprintf("%d",chunkNb)
+		s += ","
+	}
+	s += fmt.Sprintf("%d", searchResult.ChunkMap[len(searchResult.ChunkMap)-1])
+	fmt.Println(s)
 }

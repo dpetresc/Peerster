@@ -42,6 +42,9 @@ type Gossiper struct {
 	lDownloadingChunk *lockDownloadingChunks
 	lCurrentDownloads *lockCurrentDownloading
 	lAllChunks        *lockAllChunks
+	// search requests
+	lRecentSearchRequest *LockRecentSearchRequest
+	lSearchMatches       *LockSearchMatches
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
@@ -98,25 +101,37 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		chunks: make(map[string][]byte),
 	}
 
+	// search requests
+	lRecentSearchRequest := LockRecentSearchRequest{
+		Requests: make(map[searchRequestIdentifier]bool),
+	}
+
+	lSearchMatches := LockSearchMatches{
+		currNbFullMatch: 0,
+		Matches: make(map[FileSearchIdentifier]*MatchStatus),
+	}
+
 	return &Gossiper{
-		Address:           udpAddr,
-		conn:              udpConn,
-		Name:              name,
-		Peers:             peers,
-		simple:            simple,
-		antiEntropy:       antiEntropy,
-		rtimer:            rtimer,
-		ClientAddr:        udpClientAddr,
-		ClientConn:        udpClientConn,
-		lAllMsg:           &lockAllMsg,
-		LLastPrivateMsg:   &lockLastPrivateMsg,
-		lAcks:             &lacks,
-		LDsdv:             &lDsdv,
-		lFiles:            &lFiles,
-		lUncompletedFiles: &lUncompletedFiles,
-		lDownloadingChunk: &lDownloadingChunk,
-		lCurrentDownloads: &lCurrentDownloads,
-		lAllChunks:        &lAllChunks,
+		Address:              udpAddr,
+		conn:                 udpConn,
+		Name:                 name,
+		Peers:                peers,
+		simple:               simple,
+		antiEntropy:          antiEntropy,
+		rtimer:               rtimer,
+		ClientAddr:           udpClientAddr,
+		ClientConn:           udpClientConn,
+		lAllMsg:              &lockAllMsg,
+		LLastPrivateMsg:      &lockLastPrivateMsg,
+		lAcks:                &lacks,
+		LDsdv:                &lDsdv,
+		lFiles:               &lFiles,
+		lUncompletedFiles:    &lUncompletedFiles,
+		lDownloadingChunk:    &lDownloadingChunk,
+		lCurrentDownloads:    &lCurrentDownloads,
+		lAllChunks:           &lAllChunks,
+		lRecentSearchRequest: &lRecentSearchRequest,
+		lSearchMatches:       &lSearchMatches,
 	}
 }
 

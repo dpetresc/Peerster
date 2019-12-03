@@ -43,22 +43,30 @@ func logBadRequestHashFormat(){
 }
 
 func isCorrectArgumentCombination() bool{
-	// Flags: dest + msg + file + request
+	// Flags: dest + msg + file + request + keywords + budget
+
 	// hw2 exercise 3 combination: (dest + msg) ou msg
-	if (dest != "" && msg != "" && file == "" && request == "") ||
-		(dest == "" && msg != "" && file == "" && request == ""){
+	if (dest != "" && msg != "" && file == "" && request == "" && keywords == "" && budget == -1) ||
+		(dest == "" && msg != "" && file == "" && request == "" && keywords == "" && budget == -1){
 		return true
 	}
-	// hw2 exercise 4 combination: file
-	if dest == "" && msg == "" && file != "" && request == ""{
+
+	// hw2 exercise 4 combination: index file
+	if dest == "" && msg == "" && file != "" && request == "" && keywords == "" && budget == -1{
 		return true
 	}
+
 	// hw2 exercise 6 combination: dest + file + request
-	if dest != "" && msg == "" && file != "" && request != ""{
+	if dest != "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1{
 		return true
 	}
+
 	// hw3 search request
-	if keywords != "" {
+	if dest == "" && msg == "" && file == "" && request == "" && keywords != "" {
+		return true
+	}
+	// hw3 download previous search requested file
+	if dest == "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1{
 		return true
 	}
 	return false
@@ -86,6 +94,21 @@ func checkClientFlags() {
 	}
 }
 
+func dealWithEmptyField(packetToSend *util.Message, requestBytes []byte) {
+	if dest == "" {
+		packetToSend.Destination = nil
+	}
+	if keywords == "" {
+		packetToSend.Keywords = nil
+	}
+	if len(requestBytes) == 0 {
+		packetToSend.Request = nil
+	}
+	if file == "" {
+		packetToSend.File = nil
+	}
+}
+
 func main() {
 	checkClientFlags()
 
@@ -100,18 +123,12 @@ func main() {
 		Request: &requestBytes,
 		Keywords: &keywords,
 	}
-
 	if budget != -1 {
 		uintBudget := uint64(budget)
 		packetToSend.Budget = &uintBudget
 	}
 
-	if dest == "" {
-		packetToSend.Destination = nil
-	}
-	if keywords == "" {
-		packetToSend.Keywords = nil
-	}
+	dealWithEmptyField(&packetToSend, requestBytes)
 
 	packetByte, err := protobuf.Encode(&packetToSend)
 	util.CheckError(err)

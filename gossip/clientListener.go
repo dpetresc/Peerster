@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/util"
+	"time"
 )
 
 /************************************CLIENT*****************************************/
@@ -49,12 +50,39 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 					//Budget: *packet.Budget,
 					Keywords: keywords,
 				}}
+				gossiper.lSearchMatches.Lock()
+				gossiper.lSearchMatches.currNbFullMatch = 0
+				gossiper.lSearchMatches.Matches = make(map[FileSearchIdentifier]*MatchStatus)
+				gossiper.lSearchMatches.Unlock()
+
 				if packet.Budget == nil {
 					searchPacket.SearchRequest.Budget = 2
-					go gossiper.handleSearchRequestPacket(searchPacket, false)
+
+					go gossiper.handleSearchRequestPacket(searchPacket, nil)
+
+					ticker := time.NewTicker(time.Second)
+					defer ticker.Stop()
+
+					for {
+						select{
+						case <- ticker.C:
+							searchPacket.SearchRequest.Budget *= 2
+							if searchPacket.SearchRequest.Budget > maxBudget {
+								return
+							}
+							gossiper.lSearchMatches.RLock()
+							if gossiper.lSearchMatches.currNbFullMatch >= fullMatchThreshold {
+								gossiper.lSearchMatches.RUnlock()
+								return
+							}else {
+								gossiper.lSearchMatches.RUnlock()
+							}
+							go gossiper.handleSearchRequestPacket(searchPacket, nil)
+						}
+					}
 				} else {
 					searchPacket.SearchRequest.Budget = *packet.Budget
-					go gossiper.handleSearchRequestPacket(searchPacket, true)
+					go gossiper.handleSearchRequestPacket(searchPacket, nil)
 				}
 			} else {
 				// check is already done in server_handler
@@ -80,9 +108,16 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
 				go gossiper.rumormonger("", "", &packetToSend, false)
 			}
-		}else if packet.Destination != nil {
-			// request file
-			go gossiper.startDownload(packet)
+		}else if packet.Request != nil {
+			if packet.Destination == nil {
+				// download previous search requested file
+				destination := ""
+				packet.Destination = &destination
+				go gossiper.startDownload(packet)
+			} else {
+				// request file with specified destination
+				go gossiper.startDownload(packet)
+			}
 		}else {
 			// index file
 			go gossiper.IndexFile(*packet.File)

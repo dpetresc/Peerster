@@ -3,6 +3,7 @@ package gossip
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 )
 
@@ -115,6 +116,86 @@ func (gossiper *Gossiper) handleDataReplyPacket(packet *util.GossipPacket) {
 					HopLimit: hopValue - 1,
 					HashValue: packet.DataReply.HashValue,
 					Data: packet.DataReply.Data,
+				}}
+				gossiper.sendPacketToPeer(nextHop, packetToForward)
+			}
+		}
+	}
+}
+
+func (gossiper *Gossiper) updateMatches(fSId FileSearchIdentifier, chunkIndex uint64, packet *util.GossipPacket, origin string, newResult bool) bool {
+	isAlreadyTracked := false
+	if peers, ok := gossiper.lSearchMatches.Matches[fSId].chunksDistribution[chunkIndex]; !ok {
+		gossiper.lSearchMatches.Matches[fSId].chunksDistribution[chunkIndex] = make([]string, 0)
+	} else {
+		for _, peer := range peers {
+			if peer == packet.SearchReply.Origin {
+				isAlreadyTracked = true
+				break
+			}
+		}
+	}
+	if !isAlreadyTracked {
+		gossiper.lSearchMatches.Matches[fSId].chunksDistribution[chunkIndex] = append(gossiper.lSearchMatches.Matches[fSId].chunksDistribution[chunkIndex], origin)
+		newResult = true
+	}
+	return newResult
+}
+
+// Search reply
+func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
+	if packet.SearchReply.Destination == gossiper.Name {
+		gossiper.lSearchMatches.Lock()
+		if gossiper.lSearchMatches.currNbFullMatch >= fullMatchThreshold {
+			gossiper.lSearchMatches.Unlock()
+			return
+		}
+		origin := packet.SearchReply.Origin
+		for _,result := range packet.SearchReply.Results {
+			if len(result.ChunkMap) == 0 {
+				break
+			}
+			metafile := hex.EncodeToString(result.MetafileHash)
+			fSId := FileSearchIdentifier{
+				Filename: result.FileName,
+				Metahash: metafile,
+			}
+			if _,ok := gossiper.lSearchMatches.Matches[fSId]; !ok {
+				matchStatus := MatchStatus{
+					chunksDistribution: make(map[uint64][]string),
+					totalNbChunk: result.ChunkCount,
+				}
+				gossiper.lSearchMatches.Matches[fSId] = &matchStatus
+			}
+			newResult := false
+			for _,chunkIndex := range result.ChunkMap {
+				newResult = gossiper.updateMatches(fSId, chunkIndex, packet, origin, newResult) || newResult
+			}
+			if newResult {
+				result.PrintSearchMatch(origin)
+				if uint64(len(result.ChunkMap)) == result.ChunkCount {
+					gossiper.lSearchMatches.currNbFullMatch += 1
+					if gossiper.lSearchMatches.currNbFullMatch >= fullMatchThreshold {
+						fmt.Println("SEARCH FINISHED")
+						gossiper.lSearchMatches.Unlock()
+						return
+					}
+				}
+			}
+		}
+		gossiper.lSearchMatches.Unlock()
+	} else {
+		// transfer the file
+		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.SearchReply.Destination)
+		// we have the next hop of this origin
+		if nextHop != "" {
+			hopValue := packet.SearchReply.HopLimit
+			if hopValue > 0 {
+				packetToForward := &util.GossipPacket{SearchReply: &util.SearchReply{
+					Origin:      packet.SearchReply.Origin,
+					Destination: packet.SearchReply.Destination,
+					HopLimit:    hopValue - 1,
+					Results:     packet.SearchReply.Results,
 				}}
 				gossiper.sendPacketToPeer(nextHop, packetToForward)
 			}
