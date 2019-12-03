@@ -33,6 +33,8 @@ type GossipPacket struct {
 	DataReply *DataReply
 	SearchRequest *SearchRequest
 	SearchReply *SearchReply
+	TLCMessage *TLCMessage
+	Ack *TLCAck
 }
 
 /******************** SIMPLE MESSAGE ********************/
@@ -143,3 +145,26 @@ func (searchResult *SearchResult) PrintSearchMatch(origin string) {
 	s += fmt.Sprintf("%d", searchResult.ChunkMap[len(searchResult.ChunkMap)-1])
 	fmt.Println(s)
 }
+
+/******************** BLOCK CHAIN ********************/
+type TxPublish struct {
+	Name string
+	Size int64 // Size in bytes
+	MetafileHash []byte
+}
+
+type BlockPublish struct {
+	PrevHash [32]byte
+	Transaction TxPublish
+}
+
+type TLCMessage struct {
+	Origin string
+	ID uint32
+	Confirmed int
+	TxBlock BlockPublish
+	VectorClock *StatusPacket
+	Fitness float32
+}
+
+type TLCAck PrivateMessage

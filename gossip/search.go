@@ -61,15 +61,14 @@ func (gossiper *Gossiper) handleSearchRequestPacket(packet *util.GossipPacket, s
 	}else {
 		sourceAddrString = ""
 	}
-	gossiper.lRecentSearchRequest.RLock()
 	searchRequestId := searchRequestIdentifier{
 		Origin:   packet.SearchRequest.Origin,
 		Keywords: strings.Join(packet.SearchRequest.Keywords, ","),
 	}
+	gossiper.lRecentSearchRequest.Lock()
 	if _, ok := gossiper.lRecentSearchRequest.Requests[searchRequestId]; !ok {
-		gossiper.lRecentSearchRequest.RUnlock()
-		go gossiper.removeSearchReqestWhenTimeout(searchRequestId)
-
+		gossiper.lRecentSearchRequest.Requests[searchRequestId] = true
+		gossiper.lRecentSearchRequest.Unlock()
 		if packet.SearchRequest.Origin != gossiper.Name {
 			results := gossiper.searchFiles(packet.SearchRequest.Keywords)
 			if len(results) > 0 {
@@ -85,8 +84,9 @@ func (gossiper *Gossiper) handleSearchRequestPacket(packet *util.GossipPacket, s
 			}
 		}
 		gossiper.redistributeSearchRequest(packet, sourceAddrString)
+		go gossiper.removeSearchReqestWhenTimeout(searchRequestId)
 	} else {
-		gossiper.lRecentSearchRequest.RUnlock()
+		gossiper.lRecentSearchRequest.Unlock()
 	}
 }
 

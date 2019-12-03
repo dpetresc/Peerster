@@ -153,7 +153,7 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 		origin := packet.SearchReply.Origin
 		for _,result := range packet.SearchReply.Results {
 			if len(result.ChunkMap) == 0 {
-				break
+				continue
 			}
 			metafile := hex.EncodeToString(result.MetafileHash)
 			fSId := FileSearchIdentifier{

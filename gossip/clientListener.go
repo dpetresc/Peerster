@@ -47,7 +47,6 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				var searchPacket *util.GossipPacket
 				searchPacket = &util.GossipPacket{SearchRequest: &util.SearchRequest{
 					Origin: gossiper.Name,
-					//Budget: *packet.Budget,
 					Keywords: keywords,
 				}}
 				gossiper.lSearchMatches.Lock()

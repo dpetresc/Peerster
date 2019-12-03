@@ -13,8 +13,12 @@ var name string
 var peers string
 var simple bool
 var antiEntropy int
-var gui bool
 var rtimer int
+var gui bool
+
+// hw3
+var hw3ex2 bool
+var N uint64
 
 var clientAddr string
 
@@ -27,8 +31,11 @@ func init() {
 	flag.StringVar(&peers, "peers", "", "comma separated list of peers of the form ip:port")
 	flag.BoolVar(&simple, "simple", false, "run gossip in simple broadcast mode")
 	flag.IntVar(&antiEntropy, "antiEntropy", 10, "timeout in seconds for anti-entropy")
-	flag.IntVar(&rtimer, "rtimer", 0, "Timeout in seconds to send route rumors")
+	flag.IntVar(&rtimer, "rtimer", 0, "timeout in seconds to send route rumors")
 	flag.BoolVar(&gui, "gui", false, "run gossip with gui")
+	// hw3
+	flag.BoolVar(&hw3ex2, "hw3ex2", false, "hw3ex2 flag")
+	flag.Uint64Var(&N, "N", 1, "number of nodes in peerster")
 
 	flag.Parse()
 }
