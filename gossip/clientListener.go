@@ -54,6 +54,8 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				gossiper.lSearchMatches.Matches = make(map[FileSearchIdentifier]*MatchStatus)
 				gossiper.lSearchMatches.Unlock()
 
+				gossiper.Matches.Clear()
+
 				if packet.Budget == nil {
 					searchPacket.SearchRequest.Budget = 2
 

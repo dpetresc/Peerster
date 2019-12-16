@@ -167,6 +167,9 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 				}
 				gossiper.lSearchMatches.Matches[fSId] = &matchStatus
 			}
+			//GUI
+			gossiper.Matches.AddNewResult(result, origin)
+			// END GUI
 			newResult := false
 			for _,chunkIndex := range result.ChunkMap {
 				newResult = gossiper.updateMatches(fSId, chunkIndex, packet, origin, newResult) || newResult
@@ -174,6 +177,17 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 			if newResult {
 				result.PrintSearchMatch(origin)
 				if uint64(len(result.ChunkMap)) == result.ChunkCount {
+					//GUI
+					gossiper.Matches.Lock()
+					gossiper.Matches.Queue = append(gossiper.Matches.Queue, struct {
+						FileName string
+						Origin   string
+						MetaHash string
+					}{FileName: result.FileName, Origin: origin, MetaHash:hex.EncodeToString(result.MetafileHash)})
+					gossiper.Matches.Unlock()
+					// END GUI
+
+
 					gossiper.lSearchMatches.currNbFullMatch += 1
 					if gossiper.lSearchMatches.currNbFullMatch >= fullMatchThreshold {
 						fmt.Println("SEARCH FINISHED")
@@ -206,9 +220,9 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 // TLCAck
 func (gossiper *Gossiper) handleAckPacket(packet *util.GossipPacket) {
 	if packet.Ack.Destination == gossiper.Name {
-		gossiper.lCurrentPublish.Lock()
-		if peers, ok := gossiper.lCurrentPublish.acksPeers[packet.Ack.ID]; ok {
-			if len(gossiper.lCurrentPublish.acksPeers[packet.Ack.ID]) <= int(gossiper.N)/2 {
+		gossiper.LCurrentPublish.Lock()
+		if peers, ok := gossiper.LCurrentPublish.acksPeers[packet.Ack.ID]; ok {
+			if len(gossiper.LCurrentPublish.acksPeers[packet.Ack.ID]) <= int(gossiper.N)/2 {
 				alreadyAcked := false
 				for _,peer := range peers {
 					if packet.Ack.Origin == peer {
@@ -217,14 +231,14 @@ func (gossiper *Gossiper) handleAckPacket(packet *util.GossipPacket) {
 					}
 				}
 				if !alreadyAcked {
-					gossiper.lCurrentPublish.acksPeers[packet.Ack.ID] = append(gossiper.lCurrentPublish.acksPeers[packet.Ack.ID], packet.Ack.Origin)
-					if len(gossiper.lCurrentPublish.acksPeers[packet.Ack.ID]) > int(gossiper.N)/2 {
-						gossiper.lCurrentPublish.majorityTrigger[packet.Ack.ID] <- true
+					gossiper.LCurrentPublish.acksPeers[packet.Ack.ID] = append(gossiper.LCurrentPublish.acksPeers[packet.Ack.ID], packet.Ack.Origin)
+					if len(gossiper.LCurrentPublish.acksPeers[packet.Ack.ID]) > int(gossiper.N)/2 {
+						gossiper.LCurrentPublish.majorityTrigger[packet.Ack.ID] <- true
 					}
 				}
 			}
 		}
-		gossiper.lCurrentPublish.Unlock()
+		gossiper.LCurrentPublish.Unlock()
 	} else {
 		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.Ack.Destination)
 		// we have the next hop of this origin

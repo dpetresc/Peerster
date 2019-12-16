@@ -107,5 +107,11 @@ func (gossiper *Gossiper) handleTLCMessagePacket(packet *util.GossipPacket, sour
 			packet.TLCMessage.Origin, packet.TLCMessage.ID,
 			packet.TLCMessage.TxBlock.Transaction.Name, packet.TLCMessage.TxBlock.Transaction.Size,
 			hex.EncodeToString(packet.TLCMessage.TxBlock.Transaction.MetafileHash))
+		// GUI
+		gossiper.LCurrentPublish.Confirmed = append(gossiper.LCurrentPublish.Confirmed, fmt.Sprintf("CONFIRMED GOSSIP origin %s ID %d file name %s size %d metahash %s\n",
+			packet.TLCMessage.Origin, packet.TLCMessage.ID,
+			packet.TLCMessage.TxBlock.Transaction.Name, packet.TLCMessage.TxBlock.Transaction.Size,
+			hex.EncodeToString(packet.TLCMessage.TxBlock.Transaction.MetafileHash)))
+		// END GUI
 	}
 }

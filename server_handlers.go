@@ -200,6 +200,46 @@ func SearchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GUI
+func matchesHandler(w http.ResponseWriter, request *http.Request) {
+	enableCors(&w)
+	switch request.Method{
+	case "GET":
+		mGossiper.Matches.RLock()
+		matchesAsJSON, err := json.Marshal(mGossiper.Matches.Queue)
+		mGossiper.Matches.RUnlock()
+		if err == nil {
+			w.WriteHeader(http.StatusOK)
+			w.Write(matchesAsJSON)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	default:
+		w.WriteHeader(http.StatusNotFound)
+
+	}
+}
+
+func confirmationHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "GET":
+		mGossiper.LCurrentPublish.Lock()
+		confirmation := mGossiper.LCurrentPublish.Confirmed
+		if len(confirmation) > 0 {
+			msgListJson, err := json.Marshal(confirmation)
+			util.CheckError(err)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(msgListJson)
+			mGossiper.LCurrentPublish.Confirmed = make([]string, 0)
+		}
+		mGossiper.LCurrentPublish.Unlock()
+	}
+}
+// END GUI
+
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }

@@ -33,12 +33,29 @@ type lockAllChunks struct {
 	sync.RWMutex
 }
 
+// GUI
+type Confirmation struct {
+	Origin string
+	ID     uint32
+}
+
 type lockCurrentPublish struct {
 	// id of TLC message => peers from wich it has received the acks
 	acksPeers         map[uint32][]string
 	majorityTrigger map[uint32]chan bool
+	// GUI
+	Total        int
+	MyRound      uint32
+	OtherRounds  map[string]uint32
+	Queue        []*MyFile
+	Confirmed    map[uint32][]Confirmation
+	FutureMsg    []*util.TLCMessage
+	LastID       uint32
+	ReicvCommand bool
+	// END GUI
 	sync.RWMutex
 }
+// END GUI
 
 func getInfoFile(f *os.File) (int64, int) {
 	fileInfo, err := f.Stat()
@@ -108,6 +125,7 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 		packetToSend := gossiper.createNewTLCMessageToSend(blockPublish)
 		fmt.Printf("UNCONFIRMED GOSSIP origin %s ID %d file name %s size %d metahash %s\n",
 			gossiper.Name, packetToSend.TLCMessage.ID, fileName, fileSizeBytes, metahash)
+		
 		go gossiper.rumormonger("", "", &packetToSend, false)
 		go gossiper.stubbornTLCMessage(&packetToSend)
 	}
@@ -117,9 +135,9 @@ func (gossiper *Gossiper) IndexFile(fileName string) *MyFile {
 
 func (gossiper *Gossiper) stubbornTLCMessage(packet *util.GossipPacket) {
 	ticker := time.NewTicker(time.Duration(gossiper.stubbornTimeout) * time.Second)
-	gossiper.lCurrentPublish.RLock()
-	majorityTriggerChan := gossiper.lCurrentPublish.majorityTrigger[packet.TLCMessage.ID]
-	gossiper.lCurrentPublish.RUnlock()
+	gossiper.LCurrentPublish.RLock()
+	majorityTriggerChan := gossiper.LCurrentPublish.majorityTrigger[packet.TLCMessage.ID]
+	gossiper.LCurrentPublish.RUnlock()
 	for {
 		select {
 		case <-ticker.C:
@@ -143,19 +161,19 @@ func (gossiper *Gossiper) stubbornTLCMessage(packet *util.GossipPacket) {
 			gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, false)
 			gossiper.lAllMsg.Unlock()
 
-			gossiper.lCurrentPublish.Lock()
-			if peers, ok := gossiper.lCurrentPublish.acksPeers[packet.TLCMessage.ID]; ok {
+			gossiper.LCurrentPublish.Lock()
+			if peers, ok := gossiper.LCurrentPublish.acksPeers[packet.TLCMessage.ID]; ok {
 				fmt.Printf("RE-BROADCAST ID %d WITNESSES %s\n", packet.TLCMessage.ID, strings.Join(peers, ","))
 
 				go gossiper.rumormonger("", "", &packetToSend, false)
 
-				delete(gossiper.lCurrentPublish.majorityTrigger, packet.TLCMessage.ID)
-				delete(gossiper.lCurrentPublish.acksPeers, packet.TLCMessage.ID)
-				gossiper.lCurrentPublish.Unlock()
+				delete(gossiper.LCurrentPublish.majorityTrigger, packet.TLCMessage.ID)
+				delete(gossiper.LCurrentPublish.acksPeers, packet.TLCMessage.ID)
+				gossiper.LCurrentPublish.Unlock()
 				return
 			}
 			// concurrency
-			gossiper.lCurrentPublish.Unlock()
+			gossiper.LCurrentPublish.Unlock()
 		}
 	}
 }
