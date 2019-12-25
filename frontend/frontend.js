@@ -426,7 +426,6 @@ function getConfirmationMessages() {
         dataType: 'json',
         success: function (data, status, xhr) {
             if (data != undefined) {
-                let array = document.getElementById("confimation")
                 for (var i = 0; i < data.length; i++) {
                     confirmedMessage.add(data[i]);
                     /*var tableRef = document.getElementById('confimation').getElementsByTagName('tbody')[0];
@@ -436,8 +435,12 @@ function getConfirmationMessages() {
                     newCell.appendChild(newText);*/
                 }
             }
+            var list = document.getElementById("confirmation").getElementsByTagName('tbody')[0];
+            while (list.hasChildNodes()) {
+                list.removeChild(list.lastChild);
+            }
             for (let item of confirmedMessage) {
-                var tableRef = document.getElementById('confimation').getElementsByTagName('tbody')[0];
+                var tableRef = document.getElementById('confirmation').getElementsByTagName('tbody')[0];
                 var newRow   = tableRef.insertRow();
                 var newCell  = newRow.insertCell(0);
                 var newText  = document.createTextNode(item);

@@ -125,11 +125,17 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 
 	lCurrentPublish := &lockCurrentPublish{
-		acksPeers: make(map[uint32][]string),
-		majorityTrigger:      make(map[uint32]chan bool),
-		// GUI
-		Confirmed: make([]string, 0),
-		// END GUI
+		acksPeers:       make(map[uint32][]string),
+		majorityTrigger: make(map[uint32]chan bool),
+		RWMutex:         sync.RWMutex{},
+		MyRound:         0,
+		OtherRounds:     make(map[string]uint32),
+		Queue:           make([]*MyFile, 0),
+		Confirmed:       make(map[uint32][]Confirmation),
+		FutureMsg:       make([]*util.TLCMessage, 0),
+		LastID:          0,
+		ReicvCommand:    false,
+		GuiMessages:     make([]string, 0),
 	}
 
 	return &Gossiper{
@@ -254,7 +260,7 @@ func (gossiper *Gossiper) createNewTLCMessageToSend(blockPublish util.BlockPubli
 			ID:          id,
 			Confirmed:   -1,
 			TxBlock:     blockPublish,
-			VectorClock: nil,
+			VectorClock: gossiper.createStatusPacket().Status,
 			Fitness:     0,
 		},
 	}
@@ -262,10 +268,8 @@ func (gossiper *Gossiper) createNewTLCMessageToSend(blockPublish util.BlockPubli
 	gossiper.lAllMsg.Unlock()
 
 	// Update internal structure
-	gossiper.LCurrentPublish.Lock()
 	gossiper.LCurrentPublish.acksPeers[id] = make([]string, 0)
 	gossiper.LCurrentPublish.acksPeers[id] = append(gossiper.LCurrentPublish.acksPeers[id], gossiper.Name)
 	gossiper.LCurrentPublish.majorityTrigger[id] = make(chan bool)
-	gossiper.LCurrentPublish.Unlock()
 	return packetToSend
 }

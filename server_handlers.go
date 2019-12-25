@@ -225,7 +225,7 @@ func confirmationHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		mGossiper.LCurrentPublish.Lock()
-		confirmation := mGossiper.LCurrentPublish.Confirmed
+		confirmation := mGossiper.LCurrentPublish.GuiMessages
 		if len(confirmation) > 0 {
 			msgListJson, err := json.Marshal(confirmation)
 			util.CheckError(err)
@@ -233,7 +233,7 @@ func confirmationHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(msgListJson)
-			mGossiper.LCurrentPublish.Confirmed = make([]string, 0)
+			//mGossiper.LCurrentPublish.GuiMessages = make([]string, 0)
 		}
 		mGossiper.LCurrentPublish.Unlock()
 	}
