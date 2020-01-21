@@ -45,22 +45,9 @@ type Gossiper struct {
 	// search requests
 	lRecentSearchRequest *LockRecentSearchRequest
 	lSearchMatches       *LockSearchMatches
-	// GUI
-	Matches         *Matches
-	// END GUI
-	// hw3 part 2
-	N               uint64
-	hopLimitTLC     uint32
-	stubbornTimeout int
-	hw3ex2          bool
-	LCurrentPublish *lockCurrentPublish
-	// hw3 part 3
-	hw3ex3 bool
-	ackAll bool
 }
 
-func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int,
-	N uint64, hopLimitTLC uint32, stubbornTimeout int, hw3ex2 bool, hw3ex3 bool, ackAll bool) *Gossiper {
+func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -121,21 +108,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	lSearchMatches := LockSearchMatches{
 		currNbFullMatch: 0,
-		Matches:         make(map[FileSearchIdentifier]*MatchStatus),
-	}
-
-	lCurrentPublish := &lockCurrentPublish{
-		acksPeers:       make(map[uint32][]string),
-		majorityTrigger: make(map[uint32]chan bool),
-		RWMutex:         sync.RWMutex{},
-		MyRound:         0,
-		OtherRounds:     make(map[string]uint32),
-		Queue:           make([]*MyFile, 0),
-		Confirmed:       make(map[uint32][]Confirmation),
-		FutureMsg:       make([]*util.TLCMessage, 0),
-		LastID:          0,
-		ReicvCommand:    false,
-		GuiMessages:     make([]string, 0),
+		Matches: make(map[FileSearchIdentifier]*MatchStatus),
 	}
 
 	return &Gossiper{
@@ -159,16 +132,6 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllChunks:           &lAllChunks,
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
-		// GUI
-		Matches:         MatchesFactory(),
-		// END GUI
-		N:               N,
-		hopLimitTLC:     hopLimitTLC,
-		stubbornTimeout: stubbornTimeout,
-		hw3ex2:          hw3ex2,
-		hw3ex3:          hw3ex3,
-		LCurrentPublish: lCurrentPublish,
-		ackAll:			ackAll,
 	}
 }
 
@@ -247,29 +210,5 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	}}
 	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, routeRumor)
 	gossiper.lAllMsg.Unlock()
-	return packetToSend
-}
-
-// When indexing creates new BlockPublish contained in a TLCMessage
-func (gossiper *Gossiper) createNewTLCMessageToSend(blockPublish util.BlockPublish) util.GossipPacket {
-	gossiper.lAllMsg.Lock()
-	id := gossiper.lAllMsg.allMsg[gossiper.Name].GetNextID()
-	packetToSend := util.GossipPacket{
-		TLCMessage: &util.TLCMessage{
-			Origin:      gossiper.Name,
-			ID:          id,
-			Confirmed:   -1,
-			TxBlock:     blockPublish,
-			VectorClock: gossiper.createStatusPacket().Status,
-			Fitness:     0,
-		},
-	}
-	gossiper.lAllMsg.allMsg[gossiper.Name].AddMessage(&packetToSend, id, false)
-	gossiper.lAllMsg.Unlock()
-
-	// Update internal structure
-	gossiper.LCurrentPublish.acksPeers[id] = make([]string, 0)
-	gossiper.LCurrentPublish.acksPeers[id] = append(gossiper.LCurrentPublish.acksPeers[id], gossiper.Name)
-	gossiper.LCurrentPublish.majorityTrigger[id] = make(chan bool)
 	return packetToSend
 }

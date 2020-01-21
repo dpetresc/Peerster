@@ -21,19 +21,10 @@ type LockAcks struct {
 func (gossiper *Gossiper) addAck(packet *util.GossipPacket, peer string) (bool, Ack, chan util.StatusPacket) {
 	// Requires a write lock
 	var ackChannel chan util.StatusPacket = nil
-	var ack Ack
-	if packet.Rumor != nil {
-		ack = Ack{
-			ID:         packet.Rumor.ID,
-			Origin:     packet.Rumor.Origin,
-		}
-	} else {
-		ack = Ack{
-			ID:         packet.TLCMessage.ID,
-			Origin:     packet.TLCMessage.Origin,
-		}
+	ack := Ack{
+		ID:         packet.Rumor.ID,
+		Origin:     packet.Rumor.Origin,
 	}
-
 	isNewAck := false
 	if _, ok := gossiper.lAcks.acks[peer]; !ok {
 		gossiper.lAcks.acks[peer] = make(map[Ack]chan util.StatusPacket)
@@ -124,7 +115,9 @@ func (gossiper *Gossiper) checkSenderNewMessage(sP util.StatusPacket) *util.Goss
 			if peerStatusReceiver.Identifier == origin {
 				if peerStatusSender.GetNextID() > peerStatusReceiver.NextID {
 					if peerStatusSender.GetNextID() > 1 {
-						packetToTransmit = peerStatusSender.FindPacketAt(peerStatusReceiver.NextID - 1)
+						packetToTransmit = &util.GossipPacket{Rumor:
+						peerStatusSender.FindPacketAt(peerStatusReceiver.NextID - 1),
+						}
 					}
 				}
 				foundOrigin = true
@@ -134,7 +127,9 @@ func (gossiper *Gossiper) checkSenderNewMessage(sP util.StatusPacket) *util.Goss
 		if !foundOrigin {
 			// the receiver has never received any message from origin yet
 			if peerStatusSender.GetNextID() > 1 {
-				packetToTransmit = peerStatusSender.FindPacketAt(0)
+				packetToTransmit = &util.GossipPacket{Rumor:
+				peerStatusSender.FindPacketAt(0),
+				}
 			}
 		}
 		if packetToTransmit != nil {

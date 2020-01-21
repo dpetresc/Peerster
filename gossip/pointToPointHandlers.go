@@ -167,9 +167,6 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 				}
 				gossiper.lSearchMatches.Matches[fSId] = &matchStatus
 			}
-			//GUI
-			gossiper.Matches.AddNewResult(result, origin)
-			// END GUI
 			newResult := false
 			for _,chunkIndex := range result.ChunkMap {
 				newResult = gossiper.updateMatches(fSId, chunkIndex, packet, origin, newResult) || newResult
@@ -177,17 +174,6 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 			if newResult {
 				result.PrintSearchMatch(origin)
 				if uint64(len(result.ChunkMap)) == result.ChunkCount {
-					//GUI
-					gossiper.Matches.Lock()
-					gossiper.Matches.Queue = append(gossiper.Matches.Queue, struct {
-						FileName string
-						Origin   string
-						MetaHash string
-					}{FileName: result.FileName, Origin: origin, MetaHash:hex.EncodeToString(result.MetafileHash)})
-					gossiper.Matches.Unlock()
-					// END GUI
-
-
 					gossiper.lSearchMatches.currNbFullMatch += 1
 					if gossiper.lSearchMatches.currNbFullMatch >= fullMatchThreshold {
 						fmt.Println("SEARCH FINISHED")
@@ -211,47 +197,6 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 					HopLimit:    hopValue - 1,
 					Results:     packet.SearchReply.Results,
 				}}
-				gossiper.sendPacketToPeer(nextHop, packetToForward)
-			}
-		}
-	}
-}
-
-// TLCAck
-func (gossiper *Gossiper) handleAckPacket(packet *util.GossipPacket) {
-	if packet.Ack.Destination == gossiper.Name {
-		gossiper.LCurrentPublish.Lock()
-		if peers, ok := gossiper.LCurrentPublish.acksPeers[packet.Ack.ID]; ok {
-			if len(gossiper.LCurrentPublish.acksPeers[packet.Ack.ID]) <= int(gossiper.N)/2 {
-				alreadyAcked := false
-				for _,peer := range peers {
-					if packet.Ack.Origin == peer {
-						alreadyAcked = true
-						break
-					}
-				}
-				if !alreadyAcked {
-					gossiper.LCurrentPublish.acksPeers[packet.Ack.ID] = append(gossiper.LCurrentPublish.acksPeers[packet.Ack.ID], packet.Ack.Origin)
-					if len(gossiper.LCurrentPublish.acksPeers[packet.Ack.ID]) > int(gossiper.N)/2 {
-						gossiper.LCurrentPublish.majorityTrigger[packet.Ack.ID] <- true
-					}
-				}
-			}
-		}
-		gossiper.LCurrentPublish.Unlock()
-	} else {
-		nextHop := gossiper.LDsdv.GetNextHopOrigin(packet.Ack.Destination)
-		// we have the next hop of this origin
-		if nextHop != "" {
-			hopValue := packet.Ack.HopLimit
-			if hopValue > 0 {
-				packetToForward := &util.GossipPacket{Ack: &util.TLCAck{
-					Origin:      packet.Ack.Origin,
-					ID:          packet.Ack.ID,
-					Text:        packet.Ack.Text,
-					Destination: packet.Ack.Destination,
-					HopLimit:    hopValue - 1,
-				},}
 				gossiper.sendPacketToPeer(nextHop, packetToForward)
 			}
 		}

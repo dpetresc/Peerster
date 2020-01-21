@@ -19,10 +19,6 @@ var gui bool
 // hw3
 var hw3ex2 bool
 var N uint64
-var hopLimitTLC uint64
-var stubbornTimeout int
-var hw3ex3 bool
-var ackAll bool
 
 var clientAddr string
 
@@ -40,10 +36,6 @@ func init() {
 	// hw3
 	flag.BoolVar(&hw3ex2, "hw3ex2", false, "hw3ex2 flag")
 	flag.Uint64Var(&N, "N", 1, "number of nodes in peerster")
-	flag.Uint64Var(&hopLimitTLC, "hopLimit", 10, "hop limit value for TLCAck")
-	flag.IntVar(&stubbornTimeout, "stubbornTimeout", 5, "timeout in seconds for TLC")
-	flag.BoolVar(&hw3ex3, "hw3ex3", false, "hw3ex3 flag")
-	flag.BoolVar(&ackAll, "ackAll", false, "hw3ex3 run as in hmw3ex2")
 
 	flag.Parse()
 }
@@ -55,8 +47,7 @@ func main() {
 
 	util.InitFileFolders()
 
-	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy, rtimer,
-		N, uint32(hopLimitTLC), stubbornTimeout, hw3ex2, hw3ex3, ackAll)
+	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy, rtimer)
 
 	go func() {
 		mGossiper.ListenClient()
@@ -89,10 +80,6 @@ func main() {
 			http.HandleFunc("/private", PrivateMessagesHandler)
 			http.HandleFunc("/file", FileHandler)
 			http.HandleFunc("/search", SearchHandler)
-			// GUI
-			http.HandleFunc("/matches", matchesHandler)
-			http.HandleFunc("/confirmation", confirmationHandler)
-			// END GUI
 			for {
 				err := http.ListenAndServe("localhost:8080", nil)
 				util.CheckError(err)

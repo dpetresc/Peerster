@@ -179,19 +179,3 @@ li {
   grid-column-start: 3;
   grid-column-end: 4;
 }
-
-/* match results */
-.item9 {
-  grid-row-start: 6;
-  grid-row-end: 7;
-  grid-column-start: 3;
-  grid-column-end: 4;
-}
-
-/* confirmation messages */
-.item10 {
-  grid-row-start: 5;
-  grid-row-end: 7;
-  grid-column-start: 1;
-  grid-column-end: 2;
-}
