@@ -119,7 +119,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		gossiper.connections.Conns[message.Origin] = tunnelId
 		go gossiper.setTimeout(message.Origin, &tunnelId)
 
-		//TODO send signed key + DH + signed DH
+		//TODO send signed public key + DH + signed DH
 
 
 	}
