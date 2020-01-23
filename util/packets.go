@@ -181,8 +181,8 @@ type TLCAck PrivateMessage
  *	part of the Diffie-Hellman protocol and the signature of the Diffie-Hellman protocol.
  *	ChangeCipher is sent by A and contains its key certificate, its part of the Diffie-Hellman protocol and the signature
  *	of the Diffie-Hellman protocol.
- *	ClientFinished is sent by A and contains the encrypted handshake
  * 	ServerFinished is sent by B and contains the encrypted handshake
+ *	ClientFinished is sent by A and contains the encrypted handshake
  *	Data are the secure messages
  */
 type MessageType uint8
@@ -191,8 +191,8 @@ const (
 	ClientHello MessageType = iota
 	ServerHello
 	ChangeCipherSec
-	ClientFinished
 	ServerFinished
+	ClientFinished
 	Data
 )
 
