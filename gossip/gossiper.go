@@ -45,6 +45,8 @@ type Gossiper struct {
 	// search requests
 	lRecentSearchRequest *LockRecentSearchRequest
 	lSearchMatches       *LockSearchMatches
+	// secure messages
+	connections *Connections
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
@@ -108,7 +110,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	lSearchMatches := LockSearchMatches{
 		currNbFullMatch: 0,
-		Matches: make(map[FileSearchIdentifier]*MatchStatus),
+		Matches:         make(map[FileSearchIdentifier]*MatchStatus),
 	}
 
 	return &Gossiper{
@@ -132,6 +134,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllChunks:           &lAllChunks,
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
+		connections:          NewConnections(),
 	}
 }
 
@@ -212,3 +215,8 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	gossiper.lAllMsg.Unlock()
 	return packetToSend
 }
+
+
+
+
+

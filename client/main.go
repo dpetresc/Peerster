@@ -17,6 +17,7 @@ var file string
 var request string
 var keywords string
 var budget int64
+var secure bool
 
 var clientAddrStr string
 
@@ -28,6 +29,7 @@ func init() {
 	flag.StringVar(&request, "request", "", "​file hexadecimal MetaHash")
 	flag.StringVar(&keywords, "keywords", "", "keywords for the file search")
 	flag.Int64Var(&budget, "budget", -1, "budget for the file search (optional)")
+	flag.BoolVar(&secure, "sec", false, "option used to send encrypted private messages")
 
 	flag.Parse()
 }
@@ -122,6 +124,7 @@ func main() {
 		File: &file,
 		Request: &requestBytes,
 		Keywords: &keywords,
+		Secure: secure,
 	}
 	if budget != -1 {
 		uintBudget := uint64(budget)
