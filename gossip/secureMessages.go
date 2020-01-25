@@ -3,6 +3,7 @@ package gossip
 import (
 	"crypto/rand"
 	"github.com/dpetresc/Peerster/util"
+	"github.com/monnand/dhkx"
 	"time"
 )
 
@@ -79,12 +80,13 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 		gossiper.connections.Lock()
 		defer gossiper.connections.Unlock()
 		if conn, ok := gossiper.connections.Conns[secureMessage.Origin]; ok{
+			conn.TimeoutChan <- true
 			if conn.NextPacket == secureMessage.MessageType{
 				switch secureMessage.MessageType {
 				case util.ServerHello:
-					break
+					gossiper.handleServerHello(secureMessage)
 				case util.ChangeCipherSec:
-					break
+					gossiper.handleChangeCipherSec(secureMessage)
 				case util.ServerFinished:
 					break
 				case util.ClientFinished:
@@ -103,7 +105,7 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 
 /*
  *	handleClientHello handles the received ClientHello messages. Notice that gossiper.connections
- *	must be locked at this point.
+ *	must be locked at this point. Sends a ChangeCipherSec message.
  */
 func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 
@@ -119,11 +121,73 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		gossiper.connections.Conns[message.Origin] = tunnelId
 		go gossiper.setTimeout(message.Origin, &tunnelId)
 
-		//TODO send signed public key + DH + signed DH
+		g, err := dhkx.GetGroup(0)
+		util.CheckError(err)
 
+		privateDH , err := g.GeneratePrivateKey(nil)
+		util.CheckError(err)
+
+		tunnelId.PrivateDH = privateDH
+
+		publicDH:= privateDH.Bytes()
+
+		DHSignature := util.Sign(publicDH, util.GetPrivateKey(gossiper.Name))
+
+		response := &util.SecureMessage{
+			MessageType: util.ChangeCipherSec,
+			Nonce:       message.Nonce,
+			DHPublic:    publicDH,
+			DHSignature: DHSignature,
+			Origin:      gossiper.Name,
+			Destination: message.Origin,
+			HopLimit:    HopLimit,
+		}
+
+		gossiper.HandleSecureMessage(response)
 
 	}
 }
+
+/*
+ *	handleServerHello handles the messages of the handshake. Notice that gossiper.connections
+ *	must be locked at this point. Sends a ServerHello message.
+ */
+func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
+	if util.Verify(message.DHPublic, message.DHSignature, util.GetPublicKey(message.Origin)){
+		tunnelId := gossiper.connections.Conns[message.Origin]
+
+		g, err := dhkx.GetGroup(0)
+		util.CheckError(err)
+
+		privateDH , err := g.GeneratePrivateKey(nil)
+		util.CheckError(err)
+		tunnelId.PrivateDH = privateDH
+
+		sharedKey, err := g.ComputeKey(dhkx.NewPublicKey(message.DHPublic), privateDH)
+		util.CheckError(err)
+		tunnelId.SharedKey = sharedKey
+
+		publicDH:= privateDH.Bytes()
+		DHSignature := util.Sign(publicDH, util.GetPrivateKey(gossiper.Name))
+
+		response := &util.SecureMessage{
+			MessageType: util.ServerHello,
+			Nonce:       message.Nonce,
+			DHPublic:    publicDH,
+			DHSignature: DHSignature,
+			Origin:      gossiper.Name,
+			Destination: message.Origin,
+			HopLimit:    HopLimit,
+		}
+
+		gossiper.HandleSecureMessage(response)
+	}
+}
+
+func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
+
+}
+
 
 /*
  *	setTimeout starts a new timer for the connection that was previously opened.

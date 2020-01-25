@@ -177,9 +177,9 @@ type TLCAck PrivateMessage
  *
  *	ClientHello is sent by the node that initiates the communication (A). It contains a nonce of 32 bytes that identifies
  *	the communication.
- *	ServerHello is sent by the node reached by the initiator (B). It contains its key certificate, a 32 bytes nonce, its
- *	part of the Diffie-Hellman protocol and the signature of the Diffie-Hellman protocol.
- *	ChangeCipher is sent by A and contains its key certificate, its part of the Diffie-Hellman protocol and the signature
+ *	ServerHello is sent by the node reached by the initiator (B).It contains a 32 bytes nonce (the
+ *	one it previously received), its part of the Diffie-Hellman protocol and the signature of the Diffie-Hellman protocol.
+ *	ChangeCipher is sent by A and contains its part of the Diffie-Hellman protocol and the signature
  *	of the Diffie-Hellman protocol.
  * 	ServerFinished is sent by B and contains the encrypted handshake
  *	ClientFinished is sent by A and contains the encrypted handshake
@@ -199,6 +199,8 @@ const (
 type SecureMessage struct {
 	MessageType MessageType
 	Nonce       []byte
+	DHPublic	[]byte
+	DHSignature	[]byte
 	Origin      string
 	Text        string
 	Destination string

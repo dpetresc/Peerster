@@ -2,6 +2,7 @@ package gossip
 
 import (
 	"github.com/dpetresc/Peerster/util"
+	"github.com/monnand/dhkx"
 	"sync"
 )
 
@@ -19,6 +20,8 @@ type TunnelIdentifier struct {
 	Nonce       []byte
 	NextPacket	util.MessageType
 	Pending 	[]*util.Message
+	PrivateDH	*dhkx.DHKey
+	SharedKey	*dhkx.DHKey
 }
 
 /*
