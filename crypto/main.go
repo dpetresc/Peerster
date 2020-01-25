@@ -3,13 +3,18 @@ package main
 import (
 	"bufio"
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
+	"github.com/monnand/dhkx"
+	"io"
 	"os"
 )
 
@@ -25,20 +30,28 @@ import (
  *
  *	How to import RSA keys and generate RSA keys in go:
  *	see https://medium.com/@Raulgzm/export-import-pem-files-in-go-67614624adc7
+ *
+ *	Code for Diffie-Hellman comes from:
+ *	https://github.com/monnand/dhkx
+ *	Notice that the created key is 256 bits longs
+ *
+ *	Example code for GCM comes from:
+ *	https://golang.org/pkg/crypto/cipher/#AEAD
  */
 
-func main(){
+func main() {
 	//Signature("YOOO", "../keys/CA")
 	//GenerateAndStoreRSAKeys("../keys/CA")
-	SignAndVerifyKey("../keys/own", "../keys/CA")
+	//SignAndVerifyKey("../keys/own", "../keys/CA")
+	GCM()
 }
 
-func SignAndVerifyKey(pathKeyToSign, pathPrivateKey string){
+func SignAndVerifyKey(pathKeyToSign, pathPrivateKey string) {
 	//Node's side...
 	_, publicKey := ImportRSAKeys(pathKeyToSign)
 	pemPublicBlock := &pem.Block{
-		Type:    "RSA PRIVATE KEY",
-		Bytes:   x509.MarshalPKCS1PublicKey(publicKey),
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PublicKey(publicKey),
 	}
 	//send pemPublicBlock to CA...
 
@@ -57,12 +70,12 @@ func SignAndVerifyKey(pathKeyToSign, pathPrivateKey string){
 
 }
 
-func GenerateAndStoreRSAKeys(path string){
+func GenerateAndStoreRSAKeys(path string) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	util.CheckError(err)
 
 	//export key
-	pemPrivateFile, err := os.Create(path+"/private.pem")
+	pemPrivateFile, err := os.Create(path + "/private.pem")
 	util.CheckError(err)
 
 	pemPrivateBlock := &pem.Block{
@@ -79,7 +92,7 @@ func GenerateAndStoreRSAKeys(path string){
 
 func ImportRSAKeys(path string) (*rsa.PrivateKey, *rsa.PublicKey) {
 
-	privateKeyFile, err := os.Open(path+"/private.pem")
+	privateKeyFile, err := os.Open(path + "/private.pem")
 	util.CheckError(err)
 
 	pemInfo, err := privateKeyFile.Stat()
@@ -87,7 +100,7 @@ func ImportRSAKeys(path string) (*rsa.PrivateKey, *rsa.PublicKey) {
 	pemBytes := make([]byte, pemInfo.Size())
 
 	buffer := bufio.NewReader(privateKeyFile)
-	_,err = buffer.Read(pemBytes)
+	_, err = buffer.Read(pemBytes)
 	util.CheckError(err)
 	data, _ := pem.Decode([]byte(pemBytes))
 
@@ -102,7 +115,7 @@ func ImportRSAKeys(path string) (*rsa.PrivateKey, *rsa.PublicKey) {
 	return privateKey, publicKey
 }
 
-func Signature(message, path string){
+func Signature(message, path string) {
 
 	private, public := ImportRSAKeys(path)
 
@@ -122,4 +135,64 @@ func Signature(message, path string){
 	util.CheckError(err)
 	fmt.Println("Signature verified")
 
+}
+
+func GCM(){
+	key, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	plaintext := []byte("exampleplaintext")
+
+	//Encrypt
+	block, err := aes.NewCipher(key)
+	util.CheckError(err)
+
+	nonce := make([]byte, 12)
+	_, err = io.ReadFull(rand.Reader, nonce)
+	util.CheckError(err)
+
+	aesgcm, err := cipher.NewGCM(block)
+	util.CheckError(err)
+
+	ciphertext := aesgcm.Seal(nil, nonce, plaintext, nil)
+	fmt.Printf("%x\n", ciphertext)
+
+	//Decrypt
+	pt, err := aesgcm.Open(nil, nonce, ciphertext, nil)
+	util.CheckError(err)
+
+	fmt.Printf("%s\n", pt)
+}
+
+func DH() []byte {
+	//Here is the code on Alice's side:
+
+	// Get a group. Use the default one would be enough.
+	g, err := dhkx.GetGroup(0)
+	util.CheckError(err)
+
+	// Generate a private key from the group.
+	// Use the default random number generator.
+	privateKey, err := g.GeneratePrivateKey(nil)
+	util.CheckError(err)
+
+	// Get the public key from the private key.
+	pub := privateKey.Bytes()
+	fmt.Println("Length: ",len(pub)," => ", pub)
+
+	// Send the public key to Bob.
+
+	// Receive a slice of bytes from Bob, which contains Bob's public key
+	b := make([]byte, 32)
+	_, err = rand.Read(b)
+	util.CheckError(err)
+
+	// Recover Bob's public key
+	bobPubKey := dhkx.NewPublicKey(pub)
+
+	// Compute the key
+	k, _ := g.ComputeKey(bobPubKey, privateKey)
+
+	// Get the key in the form of []byte
+	key := k.Bytes()
+
+	return key
 }
