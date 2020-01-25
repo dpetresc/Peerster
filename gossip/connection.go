@@ -16,12 +16,13 @@ import (
  *	handshake should be discarded.
  */
 type TunnelIdentifier struct {
-	TimeoutChan chan bool
-	Nonce       []byte
-	NextPacket	util.MessageType
-	Pending 	[]*util.Message
-	PrivateDH	*dhkx.DHKey
-	SharedKey	*dhkx.DHKey
+	TimeoutChan       chan bool
+	Nonce             []byte
+	NextPacket        util.MessageType
+	Pending           []*util.Message
+	PrivateDH         *dhkx.DHKey
+	SharedKey         *dhkx.DHKey
+	HandShakeMessages []*util.SecureMessage
 }
 
 /*
@@ -36,7 +37,7 @@ type Connections struct {
 /*
  *	NewConnections is a factory to create a *Connections.
  */
-func NewConnections() *Connections{
+func NewConnections() *Connections {
 	return &Connections{
 		RWMutex: sync.RWMutex{},
 		Conns:   make(map[string]TunnelIdentifier),

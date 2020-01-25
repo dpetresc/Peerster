@@ -2,6 +2,7 @@ package gossip
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"github.com/dpetresc/Peerster/util"
 	"github.com/monnand/dhkx"
 	"time"
@@ -15,14 +16,21 @@ const HopLimit = 10
  *	message *util.Message is the message sent by the client.
  */
 func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
+	//TODO verifier les locks
 	dest := *message.Destination
 
 	gossiper.connections.RLock()
 	if tunnelId, ok := gossiper.connections.Conns[dest]; ok {
+		tunnelId.TimeoutChan <- true
 		gossiper.connections.RUnlock()
 
-		tunnelId.TimeoutChan <- true
-		//TODO handle the fact that the handshake may not be finished
+		if tunnelId.NextPacket != util.Data{
+			gossiper.connections.Lock()
+			tunnelId.Pending = append(tunnelId.Pending, message)
+			gossiper.connections.Unlock()
+		}else{
+			gossiper.sendSecureMessage(message, tunnelId)
+		}
 	} else {
 		gossiper.connections.RUnlock()
 
@@ -35,26 +43,41 @@ func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
 			TimeoutChan: make(chan bool),
 			Nonce:       nonce,
 			NextPacket:  util.ServerHello,
-			Pending:	make([]*util.Message,0,1),
+			Pending:     make([]*util.Message, 0, 1),
 		}
 		newTunnelId.Pending = append(newTunnelId.Pending, message)
 		gossiper.connections.Conns[dest] = newTunnelId
-		gossiper.connections.Unlock()
-		go gossiper.setTimeout(dest, &newTunnelId)
-		
-		//Send first message of the handshake.
+
 		secureMessage := &util.SecureMessage{
 			MessageType: util.ClientHello,
 			Nonce:       nonce,
 			Origin:      gossiper.Name,
-			Text:        dest,
-			Destination: "",
+			Destination: dest,
 			HopLimit:    HopLimit,
 		}
+
+		newTunnelId.HandShakeMessages = append(newTunnelId.HandShakeMessages, secureMessage)
+
+		gossiper.connections.Unlock()
+		go gossiper.setTimeout(dest, &newTunnelId)
+
 		gossiper.HandleSecureMessage(secureMessage)
 
-
 	}
+}
+
+func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId TunnelIdentifier) {
+	ciphertext, nonceGCM := util.EncryptGCM([]byte(message.Text), tunnelId.SharedKey.Bytes())
+	secMsg := &util.SecureMessage{
+		MessageType:   util.Data,
+		Nonce:         tunnelId.Nonce,
+		EncryptedData: ciphertext,
+		GCMNonce:      nonceGCM,
+		Origin:        gossiper.Name,
+		Destination:   *message.Destination,
+		HopLimit:      HopLimit,
+	}
+	gossiper.HandleSecureMessage(secMsg)
 }
 
 /*
@@ -80,19 +103,22 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 		gossiper.connections.Lock()
 		defer gossiper.connections.Unlock()
 		if conn, ok := gossiper.connections.Conns[secureMessage.Origin]; ok{
-			conn.TimeoutChan <- true
 			if conn.NextPacket == secureMessage.MessageType{
+
+				conn.TimeoutChan <- true
+				conn.HandShakeMessages = append(conn.HandShakeMessages, secureMessage)
+
 				switch secureMessage.MessageType {
 				case util.ServerHello:
 					gossiper.handleServerHello(secureMessage)
 				case util.ChangeCipherSec:
 					gossiper.handleChangeCipherSec(secureMessage)
 				case util.ServerFinished:
-					break
+					gossiper.handleServerFinished(secureMessage)
 				case util.ClientFinished:
-					break
+					gossiper.handleClientFinished(secureMessage)
 				case util.Data:
-					break
+					gossiper.handleData(secureMessage)
 
 				}
 			}
@@ -105,7 +131,7 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 
 /*
  *	handleClientHello handles the received ClientHello messages. Notice that gossiper.connections
- *	must be locked at this point. Sends a ChangeCipherSec message.
+ *	must be locked at this point. Sends a ServerHello message.
  */
 func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 
@@ -114,7 +140,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		tunnelId := TunnelIdentifier{
 			TimeoutChan: make(chan bool),
 			Nonce:       message.Nonce,
-			NextPacket:  util.ChangeCipherSec,
+			NextPacket:  util.ServerHello,
 			Pending:     make([]*util.Message,0),
 		}
 
@@ -150,11 +176,12 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 
 /*
  *	handleServerHello handles the messages of the handshake. Notice that gossiper.connections
- *	must be locked at this point. Sends a ServerHello message.
+ *	must be locked at this point. Sends a ChangeCipherSec message.
  */
 func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 	if util.Verify(message.DHPublic, message.DHSignature, util.GetPublicKey(message.Origin)){
 		tunnelId := gossiper.connections.Conns[message.Origin]
+		tunnelId.NextPacket = util.ServerFinished
 
 		g, err := dhkx.GetGroup(0)
 		util.CheckError(err)
@@ -171,7 +198,7 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 		DHSignature := util.Sign(publicDH, util.GetPrivateKey(gossiper.Name))
 
 		response := &util.SecureMessage{
-			MessageType: util.ServerHello,
+			MessageType: util.ChangeCipherSec,
 			Nonce:       message.Nonce,
 			DHPublic:    publicDH,
 			DHSignature: DHSignature,
@@ -180,12 +207,134 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			HopLimit:    HopLimit,
 		}
 
+		tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
+
 		gossiper.HandleSecureMessage(response)
 	}
 }
 
+/*
+ *	handleChangeCipherSec handles the messages of the handshake. Notice that gossiper.connections
+ *	must be locked at this point. Sends a ServerFinished message.
+ */
 func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
+	if util.Verify(message.DHPublic, message.DHSignature, util.GetPublicKey(message.Origin)) {
+		tunnelId := gossiper.connections.Conns[message.Origin]
+		tunnelId.NextPacket = util.ClientFinished
 
+		g, err := dhkx.GetGroup(0)
+		util.CheckError(err)
+		sharedKey, err := g.ComputeKey(dhkx.NewPublicKey(message.DHPublic), tunnelId.PrivateDH)
+		util.CheckError(err)
+		tunnelId.SharedKey = sharedKey
+
+		encryptedHandshake, nonceGCM := gossiper.encryptHandshake(tunnelId)
+
+		response := &util.SecureMessage{
+			MessageType:   util.ServerFinished,
+			Nonce:         message.Nonce,
+			EncryptedData: encryptedHandshake,
+			GCMNonce:      nonceGCM,
+			Origin:        gossiper.Name,
+			Destination:   message.Origin,
+			HopLimit:      HopLimit,
+		}
+		tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
+		gossiper.HandleSecureMessage(response)
+	}
+}
+
+
+/*
+ *	handleServerFinished handles the messages of the handshake. Notice that gossiper.connections
+ *	must be locked at this point. Sends a ClientFinished message.
+ */
+func (gossiper *Gossiper) handleServerFinished(message *util.SecureMessage) {
+	tunnelId := gossiper.connections.Conns[message.Origin]
+	if gossiper.checkFinishedMessages(message.EncryptedData, message.GCMNonce, tunnelId){
+		tunnelId.NextPacket = util.Data
+
+		encryptedHandshake, nonceGCM := gossiper.encryptHandshake(tunnelId)
+
+		response := &util.SecureMessage{
+			MessageType:   util.ClientFinished,
+			Nonce:         message.Nonce,
+			EncryptedData: encryptedHandshake,
+			GCMNonce:      nonceGCM,
+			Origin:        gossiper.Name,
+			Destination:   message.Origin,
+			HopLimit:      HopLimit,
+		}
+		tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
+		gossiper.HandleSecureMessage(response)
+	}
+}
+
+func (gossiper *Gossiper) handleClientFinished(message *util.SecureMessage) {
+	tunnelId := gossiper.connections.Conns[message.Origin]
+	if gossiper.checkFinishedMessages(message.EncryptedData, message.GCMNonce, tunnelId) {
+		tunnelId.NextPacket = util.Data
+		for _, msg := range tunnelId.Pending{
+			gossiper.sendSecureMessage(msg, tunnelId)
+		}
+	}
+}
+
+func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
+	tunnelId := gossiper.connections.Conns[message.Origin]
+	plaintext := util.DecryptGCM(message.EncryptedData, message.GCMNonce, tunnelId.SharedKey.Bytes())
+
+	privMessage := &util.PrivateMessage{
+		Origin:      message.Origin,
+		ID:          0,
+		Text:        string(plaintext),
+		Destination: message.Destination,
+		HopLimit:    message.HopLimit,
+	}
+	
+	gossiper.handlePrivatePacket(&util.GossipPacket{
+		Private: privMessage,
+	})
+}
+
+
+/*
+ *	encryptHandshake encrypts the messages from the handshake.
+ *	ServerFinished: Enc(ClientHello||ServerHello||ChangeCipherSec)
+ *	ClientFinished:	Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished)
+ */
+func (gossiper *Gossiper) encryptHandshake(tunnelId TunnelIdentifier) ([]byte, []byte) {
+	toEncrypt := make([]byte, 0)
+	for _, msg := range tunnelId.HandShakeMessages {
+		bytes, err := json.Marshal(msg)
+		util.CheckError(err)
+
+		toEncrypt = append(toEncrypt, bytes...)
+	}
+	encryptedHandshake, nonceGCM := util.EncryptGCM(toEncrypt, tunnelId.SharedKey.Bytes())
+	return encryptedHandshake, nonceGCM
+}
+
+/*
+ *	checkFinishedMessages verifies that the received encrypted data in a finished message,
+ *	i.e., either Client- or ServeFinished was correctly encrypted with the given nonce and the computed shared key.
+ */
+func (gossiper *Gossiper) checkFinishedMessages(ciphertext, nonce []byte, tunnelId TunnelIdentifier) bool{
+	toEncrypt := make([]byte,0)
+	for _, msg := range tunnelId.HandShakeMessages[:len(tunnelId.HandShakeMessages)-1]{
+		bytes, err := json.Marshal(msg)
+		util.CheckError(err)
+		toEncrypt = append(toEncrypt, bytes...)
+	}
+	
+	plaintext := util.DecryptGCM(ciphertext, nonce, tunnelId.SharedKey.Bytes())
+	for i := range toEncrypt{
+		if toEncrypt[i] != plaintext[i]{
+			return false
+		}
+	}
+	return true
+	
 }
 
 

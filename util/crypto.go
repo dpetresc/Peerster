@@ -2,9 +2,12 @@ package util
 
 import (
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"io"
 )
 
 func GetPrivateKey(name string) *rsa.PrivateKey{
@@ -38,4 +41,45 @@ func Verify(message, signature []byte, publicKey *rsa.PublicKey) bool{
 	hashed := sha256.Sum256(message)
 	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hashed[:], signature)
 	return err == nil
+}
+
+/*
+ *	EncryptGCM encrypts the given plaintext using GCM encryption.
+ *	plaintext []byte is the message that must be encrypted
+ *	sharedKey []byte is the key used for the encryption
+ *	It returns a pair of ciphertext and nonce.
+ */
+func EncryptGCM(plaintext, sharedKey []byte)([]byte,[]byte){
+	//Encrypt
+	block, err := aes.NewCipher(sharedKey)
+	CheckError(err)
+
+	nonce := make([]byte, 12)
+	_, err = io.ReadFull(rand.Reader, nonce)
+	CheckError(err)
+
+	aesgcm, err := cipher.NewGCM(block)
+	CheckError(err)
+	ciphertext := aesgcm.Seal(nil, nonce, plaintext, nil)
+
+	return ciphertext, nonce
+}
+
+/*
+ *	DecryptGCM decrypts the given ciphertext that was encrypted using the given nonce and sharedKey.
+ *	ciphertext 	[]byte is the ciphertext that needs to be decrypted
+ *	nonce		[]byte is the nonce used to encrypt the message
+ *	sharedKey	[]byte is the shared key used to encrypt the message
+ *	It returns the plaintext as a slice of bytes.
+ */
+func DecryptGCM(ciphertext, nonce, sharedKey []byte)[]byte{
+	block, err := aes.NewCipher(sharedKey)
+	CheckError(err)
+
+	aesgcm, err := cipher.NewGCM(block)
+	CheckError(err)
+
+	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
+	CheckError(err)
+	return plaintext
 }

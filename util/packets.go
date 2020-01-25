@@ -181,8 +181,9 @@ type TLCAck PrivateMessage
  *	one it previously received), its part of the Diffie-Hellman protocol and the signature of the Diffie-Hellman protocol.
  *	ChangeCipher is sent by A and contains its part of the Diffie-Hellman protocol and the signature
  *	of the Diffie-Hellman protocol.
- * 	ServerFinished is sent by B and contains the encrypted handshake
+ * 	ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
  *	ClientFinished is sent by A and contains the encrypted handshake
+ *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
  *	Data are the secure messages
  */
 type MessageType uint8
@@ -197,12 +198,13 @@ const (
 )
 
 type SecureMessage struct {
-	MessageType MessageType
-	Nonce       []byte
-	DHPublic	[]byte
-	DHSignature	[]byte
-	Origin      string
-	Text        string
-	Destination string
-	HopLimit    uint32
+	MessageType   MessageType
+	Nonce         []byte
+	DHPublic      []byte
+	DHSignature   []byte
+	EncryptedData []byte
+	GCMNonce      []byte
+	Origin        string
+	Destination   string
+	HopLimit      uint32
 }
