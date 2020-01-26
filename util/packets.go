@@ -205,3 +205,28 @@ func (secMsg *SecureMessage)  String() string{
 	return fmt.Sprintf("TYPE: %d\nNonce: %x\nDHPublic: %x\nDHSignature: %x\nEncryptedData: %x\nGCMNonce: %x\nOrigin: %s\nDestination: %s\nHopLimit: %d\n",
 		secMsg.MessageType, secMsg.Nonce, secMsg.DHPublic, secMsg.DHSignature, secMsg.EncryptedData, secMsg.GCMNonce, secMsg.Origin, secMsg.Destination, secMsg.HopLimit)
 }
+
+/////////////////////////////////////TOR///////////////////////////////////////////////
+//On sérialise ce message et on le mets dans le payloads d'un secure message entre 2 noeuds
+type TORMessages struct{
+	PreviousHOP string 	//de qui on a reçu le message
+	NextHOP string		//à qui on doit forward le message (tu sais que t'es le dernier noeud si c'est égale à ton UID
+	CircuitID uint32	//id du circuit pour différencier les différents paths
+	Data []byte			//contient l'encryption du TORmessage pour le prochain noeud
+}
+//Est-ce qu'on rend les messages reliables dans cette couche en utilisant des timers et des sequence number (en mode tcp)?
+
+//si on considère le destinataire comme l'exit node (pas besoin de sortir du réseau TOR):
+//Soit on crée un nouveau path dans l'autre sens et PreviousHOP dans le TORMessage = source
+//Soit on utilise le circuitID pour retourner les messages dans l'autre sens, destinataire ne sait pas forcément de qui vient le message
+
+//chaque noeud doit se souvenir des clés échangés pour chaque path (d'où le circuit ID) et des noeuds du path qu'il connait:
+//si initiateur, des clés avec tout le monde dans le path
+//si intermédiaire juste la clé avec l'initiateur
+
+//besoin de fonction:
+//select path: choisi le path
+//extend: extend le circuit et échange les clés symmetric avec DH
+//kill: détruit un path, aka vide toute la mémoire qui référence un circuit
+//==> on peut aussi ajouter une durée de vie pour chaque circuit
+
