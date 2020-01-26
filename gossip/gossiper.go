@@ -74,6 +74,7 @@ type Gossiper struct {
 	// crypto
 	secure     bool
 	lConsensus *LockConsensus
+	connections *Connections
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
@@ -178,6 +179,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lSearchMatches:       &lSearchMatches,
 		secure:               secure,
 		lConsensus:           lConsensus,
+		connections:          NewConnections(),
 	}
 }
 
@@ -311,3 +313,15 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	gossiper.lAllMsg.Unlock()
 	return packetToSend
 }
+
+
+
+
+
+
+
+
+
+
+
+

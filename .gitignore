@@ -4,8 +4,10 @@
 *.dll
 *.so
 *.dylib
+*.pem
 Peerster
 client
+CA
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
