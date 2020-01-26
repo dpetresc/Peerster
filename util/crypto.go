@@ -1,21 +1,67 @@
 package util
 
 import (
+	"bufio"
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
 	"io"
+	"log"
+	"os"
 )
 
 func GetPrivateKey(name string) *rsa.PrivateKey{
-	return nil
+	privateKeyFile, err := os.Open("./keys/"+name+"_private.pem")
+	CheckError(err)
+
+	pemInfo, err := privateKeyFile.Stat()
+	CheckError(err)
+	pemBytes := make([]byte, pemInfo.Size())
+
+	buffer := bufio.NewReader(privateKeyFile)
+	_, err = buffer.Read(pemBytes)
+	CheckError(err)
+	data, _ := pem.Decode([]byte(pemBytes))
+
+	err = privateKeyFile.Close()
+	CheckError(err)
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(data.Bytes)
+	CheckError(err)
+
+	return privateKey
 }
 
 func GetPublicKey(name string) *rsa.PublicKey{
-	return nil
+	publicKeyFile, err := os.Open("./keys/"+name+"_public.pem")
+	CheckError(err)
+
+	pemInfo, err := publicKeyFile.Stat()
+	CheckError(err)
+	pemBytes := make([]byte, pemInfo.Size())
+
+	buffer := bufio.NewReader(publicKeyFile)
+	_, err = buffer.Read(pemBytes)
+	CheckError(err)
+	data, _ := pem.Decode([]byte(pemBytes))
+
+	err = publicKeyFile.Close()
+	CheckError(err)
+
+	publicKeyInterface, err := x509.ParsePKIXPublicKey(data.Bytes)
+	CheckError(err)
+
+	publicKey, isRSAPublicKey := publicKeyInterface.(*rsa.PublicKey)
+	if !isRSAPublicKey {
+		log.Fatal("Public key parsed is not an RSA public key")
+	}
+
+	return publicKey
 }
 
 /*

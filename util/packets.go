@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 )
 
 /******************** CLIENT MESSAGE ********************/
@@ -186,7 +187,7 @@ type TLCAck PrivateMessage
  *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
  *	Data are the secure messages
  */
-type MessageType uint8
+type MessageType uint32
 
 const (
 	ClientHello MessageType = iota
@@ -194,6 +195,7 @@ const (
 	ChangeCipherSec
 	ServerFinished
 	ClientFinished
+	ACK
 	Data
 )
 
@@ -207,4 +209,24 @@ type SecureMessage struct {
 	Origin        string
 	Destination   string
 	HopLimit      uint32
+}
+
+func (secMsg *SecureMessage) Bytes() []byte{
+	bytes := make([]byte,0)
+	bytes = append(bytes, []byte(strconv.Itoa(int(secMsg.MessageType)))...)
+	bytes = append(bytes, secMsg.Nonce...)
+	bytes = append(bytes, secMsg.DHPublic...)
+	bytes = append(bytes, secMsg.DHSignature...)
+	bytes = append(bytes, secMsg.EncryptedData...)
+	bytes = append(bytes, secMsg.GCMNonce...)
+	bytes = append(bytes, []byte(secMsg.Origin)...)
+	bytes = append(bytes, []byte(secMsg.Destination)...)
+	bytes = append(bytes, []byte(strconv.Itoa(int(secMsg.HopLimit)))...)
+	return bytes
+
+}
+
+func (secMsg *SecureMessage)  String() string{
+	return fmt.Sprintf("TYPE: %d\nNonce: %x\nDHPublic: %x\nDHSignature: %x\nEncryptedData: %x\nGCMNonce: %x\nOrigin: %s\nDestination: %s\nHopLimit: %d\n",
+		secMsg.MessageType, secMsg.Nonce, secMsg.DHPublic, secMsg.DHSignature, secMsg.EncryptedData, secMsg.GCMNonce, secMsg.Origin, secMsg.Destination, secMsg.HopLimit)
 }

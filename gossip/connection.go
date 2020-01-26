@@ -21,7 +21,7 @@ type TunnelIdentifier struct {
 	NextPacket        util.MessageType
 	Pending           []*util.Message
 	PrivateDH         *dhkx.DHKey
-	SharedKey         *dhkx.DHKey
+	SharedKey         []byte
 	HandShakeMessages []*util.SecureMessage
 }
 
@@ -31,7 +31,7 @@ type TunnelIdentifier struct {
  */
 type Connections struct {
 	sync.RWMutex
-	Conns map[string]TunnelIdentifier
+	Conns map[string]*TunnelIdentifier
 }
 
 /*
@@ -40,6 +40,6 @@ type Connections struct {
 func NewConnections() *Connections {
 	return &Connections{
 		RWMutex: sync.RWMutex{},
-		Conns:   make(map[string]TunnelIdentifier),
+		Conns:   make(map[string]*TunnelIdentifier),
 	}
 }

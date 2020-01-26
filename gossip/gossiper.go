@@ -226,3 +226,4 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 
 
 
+
