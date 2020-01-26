@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -20,6 +21,13 @@ var ChunksFolderPath string
 func CheckError(err error) {
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func CheckHttpError(r *http.Response) {
+	if r.StatusCode != 200 {
+		b, _ := ioutil.ReadAll(r.Body)
+		log.Fatal(string(b))
 	}
 }
 
@@ -52,7 +60,6 @@ func ClearDir(dir string) error {
 
 func createOrEmptyFolder(folderPath string) {
 	if _, err := os.Stat(folderPath); err == nil {
-		// comment it for the tests
 		ClearDir(folderPath)
 	} else if os.IsNotExist(err) {
 		os.Mkdir(folderPath, 0777)

@@ -12,3 +12,6 @@ client
 .idea/
 .directory
 _Downloads/
+
+_MyKeys/*
+!_MyKeys/CA

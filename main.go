@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rsa"
 	"flag"
 	"github.com/dpetresc/Peerster/gossip"
 	"github.com/dpetresc/Peerster/util"
@@ -15,10 +16,7 @@ var simple bool
 var antiEntropy int
 var rtimer int
 var gui bool
-
-// hw3
-var hw3ex2 bool
-var N uint64
+var secure bool
 
 var clientAddr string
 
@@ -33,21 +31,33 @@ func init() {
 	flag.IntVar(&antiEntropy, "antiEntropy", 10, "timeout in seconds for anti-entropy")
 	flag.IntVar(&rtimer, "rtimer", 0, "timeout in seconds to send route rumors")
 	flag.BoolVar(&gui, "gui", false, "run gossip with gui")
-	// hw3
-	flag.BoolVar(&hw3ex2, "hw3ex2", false, "hw3ex2 flag")
-	flag.Uint64Var(&N, "N", 1, "number of nodes in peerster")
+
+	// crypto
+	flag.BoolVar(&secure, "secure", false, "secure flag")
 
 	flag.Parse()
 }
 
 func main() {
-	//rand.Seed(time.Now().UnixNano())
-
 	clientAddr = "127.0.0.1:" + uiPort
 
 	util.InitFileFolders()
 
-	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy, rtimer)
+	var privateKey *rsa.PrivateKey
+	var CAKey *rsa.PublicKey
+	if secure {
+		privateKey = util.GetPrivateKey(util.KeysFolderPath, name)
+		CAKey = util.GetCAKey(util.KeysFolderPath)
+	}
+
+	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy,
+		rtimer, secure, privateKey, CAKey)
+
+	if secure {
+		go func() {
+			mGossiper.Consensus()
+		}()
+	}
 
 	go func() {
 		mGossiper.ListenClient()
