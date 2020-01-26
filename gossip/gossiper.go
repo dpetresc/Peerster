@@ -1,10 +1,16 @@
 package gossip
 
 import (
+	"bytes"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
 	"github.com/dedis/protobuf"
 	"github.com/dpetresc/Peerster/routing"
 	"github.com/dpetresc/Peerster/util"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -18,6 +24,25 @@ type LockAllMsg struct {
 type LockLastPrivateMsg struct {
 	LastPrivateMsg map[string][]*util.PrivateMessage
 	sync.RWMutex
+}
+
+type LockConsensus struct {
+	CAKey           *rsa.PublicKey
+	identity        string
+	privateKey      *rsa.PrivateKey
+	nodesPublicKeys map[string]*rsa.PublicKey
+	sync.RWMutex
+}
+
+type CAConsensus struct {
+	NodesIDPublicKeys map[string]*rsa.PublicKey
+	Signature         []byte
+}
+
+type Descriptor struct {
+	PublicKey []byte
+	Identity  []byte
+	Signature []byte
 }
 
 type Gossiper struct {
@@ -45,11 +70,15 @@ type Gossiper struct {
 	// search requests
 	lRecentSearchRequest *LockRecentSearchRequest
 	lSearchMatches       *LockSearchMatches
-	// secure messages
+
+	// crypto
+	secure     bool
+	lConsensus *LockConsensus
 	connections *Connections
 }
 
-func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int, rtimer int) *Gossiper {
+func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
+	rtimer int, secure bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -113,6 +142,20 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		Matches:         make(map[FileSearchIdentifier]*MatchStatus),
 	}
 
+	var lConsensus *LockConsensus
+	if secure {
+		lConsensus = &LockConsensus{
+			CAKey:           CAKey,
+			identity:        name,
+			privateKey:      privateKey,
+			nodesPublicKeys: nil,
+			RWMutex:         sync.RWMutex{},
+		}
+		lConsensus.subscribeToConsensus()
+	} else {
+		lConsensus = nil
+	}
+
 	return &Gossiper{
 		Address:              udpAddr,
 		conn:                 udpConn,
@@ -134,7 +177,62 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllChunks:           &lAllChunks,
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
+		secure:               secure,
+		lConsensus:           lConsensus,
 		connections:          NewConnections(),
+	}
+}
+
+func (consensus *LockConsensus) subscribeToConsensus() {
+	consensus.RLock()
+	publicKey := x509.MarshalPKCS1PublicKey(&consensus.privateKey.PublicKey)
+	identity := []byte(consensus.identity)
+	node := append(publicKey[:], identity[:]...)
+	signature := util.SignByteMessage(node, consensus.privateKey)
+	consensus.RUnlock()
+
+	descriptor := Descriptor{
+		PublicKey: publicKey,
+		Identity:  identity,
+		Signature: signature,
+	}
+
+	buf := new(bytes.Buffer)
+	json.NewEncoder(buf).Encode(descriptor)
+	r, err := http.Post("http://" + util.CAAddress + "/subscription", "application/json; charset=utf-8", buf)
+	util.CheckError(err)
+	util.CheckHttpError(r)
+}
+
+func (gossiper *Gossiper) getConsensus() {
+	r, err := http.Get("http://" + util.CAAddress + "/consensus")
+	util.CheckError(err)
+	util.CheckHttpError(r)
+	var CAResponse CAConsensus
+	err = json.NewDecoder(r.Body).Decode(&CAResponse)
+	util.CheckError(err)
+	r.Body.Close()
+
+	nodesIDPublicKeys, err := json.Marshal(CAResponse.NodesIDPublicKeys)
+	gossiper.lConsensus.Lock()
+	if !util.VerifySignature(nodesIDPublicKeys, CAResponse.Signature, gossiper.lConsensus.CAKey) {
+		err = errors.New("CA corrupted")
+		util.CheckError(err)
+		return
+	}
+	gossiper.lConsensus.nodesPublicKeys = CAResponse.NodesIDPublicKeys
+	gossiper.lConsensus.Unlock()
+}
+
+func (gossiper *Gossiper) Consensus() {
+	gossiper.getConsensus()
+	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			gossiper.getConsensus()
+		}
 	}
 }
 
