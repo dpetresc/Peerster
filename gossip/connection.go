@@ -23,6 +23,8 @@ type TunnelIdentifier struct {
 	PrivateDH         *dhkx.DHKey
 	SharedKey         []byte
 	HandShakeMessages []*util.SecureMessage
+	CTRSet            map[uint32]bool
+	CTR               uint32
 }
 
 /*
