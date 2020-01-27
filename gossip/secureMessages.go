@@ -13,6 +13,12 @@ import (
 const TimeoutDuration = time.Duration(1 * time.Minute)
 const HopLimit = 10
 
+/* TODO REMOVE
+ */
+func (gossiper *Gossiper) HandleMessageTorSecure(message *util.TorMessage) {
+
+}
+
 /*
  * 	HandleClientSecureMessage handles the messages coming from the client.
  *	message *util.Message is the message sent by the client.

@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+// TODO ajouter handle des noeuds qui crash
+// TODO gérer le timer du consensus dans le CA
 type consensus struct {
 	NodesIDPublicKeys map[string]*rsa.PublicKey
 	Signature         []byte

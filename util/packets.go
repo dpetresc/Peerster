@@ -15,6 +15,7 @@ type Message struct {
 	Keywords    *string
 	Budget      *uint64
 	Secure      bool
+	Anonyme     bool
 }
 
 func (clientMessage *Message) PrintClientMessage() {
@@ -184,7 +185,7 @@ const (
 
 type SecureMessage struct {
 	MessageType   MessageType
-	Flag		  Flag
+	Flag          Flag
 	Nonce         []byte
 	DHPublic      []byte
 	DHSignature   []byte
@@ -195,8 +196,8 @@ type SecureMessage struct {
 	HopLimit      uint32
 }
 
-func (secMsg *SecureMessage) Bytes() []byte{
-	bytes := make([]byte,0)
+func (secMsg *SecureMessage) Bytes() []byte {
+	bytes := make([]byte, 0)
 	bytes = append(bytes, []byte(strconv.Itoa(int(secMsg.MessageType)))...)
 	bytes = append(bytes, secMsg.Nonce...)
 	bytes = append(bytes, secMsg.DHPublic...)
@@ -210,10 +211,18 @@ func (secMsg *SecureMessage) Bytes() []byte{
 
 }
 
-func (secMsg *SecureMessage)  String() string{
+func (secMsg *SecureMessage) String() string {
 	return fmt.Sprintf("TYPE: %d\nNonce: %x\nDHPublic: %x\nDHSignature: %x\nEncryptedData: %x\nGCMNonce: %x\nOrigin: %s\nDestination: %s\nHopLimit: %d\n",
 		secMsg.MessageType, secMsg.Nonce, secMsg.DHPublic, secMsg.DHSignature, secMsg.EncryptedData, secMsg.GCMNonce, secMsg.Origin, secMsg.Destination, secMsg.HopLimit)
 }
+
+type TorFlag uint32
+
+const (
+	Create TorFlag = iota
+	Extend
+	Payload
+)
 
 /////////////////////////////////////TOR///////////////////////////////////////////////
 /*
@@ -222,9 +231,9 @@ func (secMsg *SecureMessage)  String() string{
  *	CircuitID	id of the Tor circuit
  *	Data		encrypted Tor message, or encrypted payload if destination
  */
-type TorMessage struct{
+type TorMessage struct {
 	CircuitID uint32
-	Data []byte
+	Flag      TorFlag
+	NextHop   string
+	Data      []byte
 }
-
-
