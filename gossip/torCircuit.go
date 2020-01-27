@@ -63,3 +63,7 @@ func (gossiper *Gossiper) createCircuit(dest string) {
 func selectPath() {
 
 }
+
+func (gossiper *Gossiper) HandleMessageSecureTor(torMessage *util.TorMessage, source string) {
+	return
+}

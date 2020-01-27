@@ -1,9 +1,11 @@
 package gossip
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"github.com/monnand/dhkx"
@@ -18,18 +20,21 @@ const HopLimit = 10
  *	message *util.Message is the message sent by the client.
  */
 func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
-	dest := *message.Destination
+
 	gossiper.connections.Lock()
 	defer gossiper.connections.Unlock()
+
+	dest := *message.Destination
 
 	if tunnelId, ok := gossiper.connections.Conns[dest]; ok {
 		tunnelId.TimeoutChan <- true
 
 		if tunnelId.NextPacket != util.Data {
-			tunnelId.Pending = append(tunnelId.Pending, message)
+			tunnelId.Pending = append(tunnelId.Pending, gossiper.secureMessageFromMessage(message, tunnelId))
 			fmt.Println("PENDING message received from client")
 		} else {
-			gossiper.sendSecureMessage(message, tunnelId)
+			//gossiper.sendSecureMessage(message, tunnelId)
+			gossiper.HandleSecureMessage(gossiper.secureMessageFromMessage(message, tunnelId))
 		}
 	} else {
 
@@ -41,11 +46,11 @@ func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
 			TimeoutChan: make(chan bool),
 			Nonce:       nonce,
 			NextPacket:  util.ServerHello,
-			Pending:     make([]*util.Message, 0, 1),
+			Pending:     make([]*util.SecureMessage, 0, 1),
 			CTRSet:      make(map[uint32]bool),
 			CTR:         0,
 		}
-		newTunnelId.Pending = append(newTunnelId.Pending, message)
+		newTunnelId.Pending = append(newTunnelId.Pending, gossiper.secureMessageFromMessage(message, newTunnelId))
 		gossiper.connections.Conns[dest] = newTunnelId
 
 		secureMessage := &util.SecureMessage{
@@ -65,16 +70,60 @@ func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
 	}
 }
 
-/*
- *	sendSecureMessage sends a tor message of type Data created from a Message.
- *	The payload has the following format: bytes(Nonce)||bytes(CTR)||bytes(text)
- *	where Nonce is 32 bytes long, CTR is 4 bytes long and text has a variable length.
- */
-func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId *TunnelIdentifier) {
+func (gossiper *Gossiper) HandleMessageTorSecure(message *util.TorMessage) {
 
-	toEncrypt := make([]byte,0)
+	gossiper.connections.Lock()
+	defer gossiper.connections.Unlock()
+
+	dest := message.NextHop
+
+	if tunnelId, ok := gossiper.connections.Conns[dest]; ok {
+		tunnelId.TimeoutChan <- true
+
+		if tunnelId.NextPacket != util.Data {
+			tunnelId.Pending = append(tunnelId.Pending, gossiper.secureMessageFromTorMessage(message, tunnelId))
+			fmt.Println("PENDING message received from client")
+		} else {
+			//gossiper.sendSecureMessage(message, tunnelId)
+			gossiper.HandleSecureMessage(gossiper.secureMessageFromTorMessage(message, tunnelId))
+		}
+	} else {
+
+		//Create a new connection
+		nonce := make([]byte, 32)
+		_, err := rand.Read(nonce)
+		util.CheckError(err)
+		newTunnelId := &TunnelIdentifier{
+			TimeoutChan: make(chan bool),
+			Nonce:       nonce,
+			NextPacket:  util.ServerHello,
+			Pending:     make([]*util.SecureMessage, 0, 1),
+			CTRSet:      make(map[uint32]bool),
+			CTR:         0,
+		}
+		newTunnelId.Pending = append(newTunnelId.Pending, gossiper.secureMessageFromTorMessage(message, newTunnelId))
+		gossiper.connections.Conns[dest] = newTunnelId
+
+		secureMessage := &util.SecureMessage{
+			MessageType: util.ClientHello,
+			Nonce:       nonce,
+			Origin:      gossiper.Name,
+			Destination: dest,
+			HopLimit:    HopLimit,
+		}
+
+		newTunnelId.HandShakeMessages = append(newTunnelId.HandShakeMessages, secureMessage)
+
+		go gossiper.setTimeout(dest, newTunnelId)
+		fmt.Printf("CONNECTION with %s opened\n", dest)
+		gossiper.HandleSecureMessage(secureMessage)
+
+	}
+}
+func (gossiper *Gossiper) secureMessageFromMessage(message *util.Message, tunnelId *TunnelIdentifier) *util.SecureMessage {
+	toEncrypt := make([]byte, 0)
 	toEncrypt = append(toEncrypt, tunnelId.Nonce...)
-	ctrBytes := make([]byte,4)
+	ctrBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(ctrBytes, tunnelId.CTR)
 	toEncrypt = append(toEncrypt, ctrBytes...)
 	toEncrypt = append(toEncrypt, []byte(message.Text)...)
@@ -82,6 +131,7 @@ func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId *Tun
 	ciphertext, nonceGCM := util.EncryptGCM(toEncrypt, tunnelId.SharedKey)
 	secMsg := &util.SecureMessage{
 		MessageType:   util.Data,
+		Flag:          util.Private,
 		Nonce:         tunnelId.Nonce,
 		EncryptedData: ciphertext,
 		GCMNonce:      nonceGCM,
@@ -90,7 +140,33 @@ func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId *Tun
 		HopLimit:      HopLimit,
 	}
 	tunnelId.CTR += 1
-	gossiper.HandleSecureMessage(secMsg)
+
+	return secMsg
+}
+
+func (gossiper *Gossiper) secureMessageFromTorMessage(message *util.TorMessage, tunnelId *TunnelIdentifier) *util.SecureMessage {
+	toEncrypt := make([]byte, 0)
+	toEncrypt = append(toEncrypt, tunnelId.Nonce...)
+	ctrBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(ctrBytes, tunnelId.CTR)
+	toEncrypt = append(toEncrypt, ctrBytes...)
+	messageBytes, err := json.Marshal(message)
+	util.CheckError(err)
+	toEncrypt = append(toEncrypt,messageBytes...)
+	ciphertext, nonceGCM := util.EncryptGCM(toEncrypt, tunnelId.SharedKey)
+	secMsg := &util.SecureMessage{
+		MessageType:   util.Data,
+		Flag:          util.Tor,
+		Nonce:         tunnelId.Nonce,
+		EncryptedData: ciphertext,
+		GCMNonce:      nonceGCM,
+		Origin:        gossiper.Name,
+		Destination:   message.NextHop,
+		HopLimit:      HopLimit,
+	}
+	tunnelId.CTR += 1
+
+	return secMsg
 }
 
 /*
@@ -151,13 +227,13 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 	}
 }
 
-func Equals(nonce1, nonce2 []byte) bool{
-	if len(nonce1) != len(nonce2){
+func Equals(nonce1, nonce2 []byte) bool {
+	if len(nonce1) != len(nonce2) {
 		return false
 	}
 
-	for i := range nonce1{
-		if nonce1[i] != nonce2[i]{
+	for i := range nonce1 {
+		if nonce1[i] != nonce2[i] {
 			return false
 		}
 	}
@@ -177,7 +253,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 			TimeoutChan:       make(chan bool),
 			Nonce:             message.Nonce,
 			NextPacket:        util.ChangeCipherSec,
-			Pending:           make([]*util.Message, 0),
+			Pending:           make([]*util.SecureMessage, 0),
 			HandShakeMessages: make([]*util.SecureMessage, 0),
 			CTRSet:            make(map[uint32]bool),
 			CTR:               0,
@@ -226,6 +302,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
  */
 func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 	gossiper.lConsensus.RLock()
+	defer gossiper.lConsensus.RUnlock()
 	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
 		if util.VerifySignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
@@ -261,8 +338,6 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			gossiper.HandleSecureMessage(response)
 		}
 	}
-	gossiper.lConsensus.RUnlock()
-
 }
 
 /*
@@ -349,28 +424,52 @@ func (gossiper *Gossiper) handleACK(message *util.SecureMessage) {
 	tunnelId := gossiper.connections.Conns[message.Origin]
 	tunnelId.NextPacket = util.Data
 	for _, msg := range tunnelId.Pending {
-		gossiper.sendSecureMessage(msg, tunnelId)
+		gossiper.HandleSecureMessage(msg)
 	}
 }
 
 func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
+	if message.Flag == util.Private{
+		gossiper. handlePrivateData(message)
+	}else{
 
+	}
 
+}
+
+func (gossiper *Gossiper) handleTorData(message *util.SecureMessage){
 	tunnelId := gossiper.connections.Conns[message.Origin]
 	plaintext := util.DecryptGCM(message.EncryptedData, message.GCMNonce, tunnelId.SharedKey)
-
 	receivedNonce := plaintext[:32]
 	receivedCTRBytes := plaintext[32:36]
 	receivedCTR := binary.LittleEndian.Uint32(receivedCTRBytes)
-
-	if _,ok := tunnelId.CTRSet[receivedCTR]; ok || !Equals(receivedNonce, message.Nonce){
+	if _, ok := tunnelId.CTRSet[receivedCTR]; ok || !Equals(receivedNonce, message.Nonce) {
 		return
-	}else{
+	} else {
 		tunnelId.CTRSet[receivedCTR] = true
 	}
+	receivedBytes := plaintext[36:]
+	ioReader := bytes.NewReader(receivedBytes)
+	torMessage := &util.TorMessage{}
+	err := json.NewDecoder(ioReader).Decode(torMessage)
+	util.CheckError(err)
 
+	gossiper.HandleMessageSecureTor(torMessage, message.Origin)
+
+}
+
+func (gossiper *Gossiper)  handlePrivateData(message *util.SecureMessage) {
+	tunnelId := gossiper.connections.Conns[message.Origin]
+	plaintext := util.DecryptGCM(message.EncryptedData, message.GCMNonce, tunnelId.SharedKey)
+	receivedNonce := plaintext[:32]
+	receivedCTRBytes := plaintext[32:36]
+	receivedCTR := binary.LittleEndian.Uint32(receivedCTRBytes)
+	if _, ok := tunnelId.CTRSet[receivedCTR]; ok || !Equals(receivedNonce, message.Nonce) {
+		return
+	} else {
+		tunnelId.CTRSet[receivedCTR] = true
+	}
 	receivedText := plaintext[36:]
-
 	privMessage := &util.PrivateMessage{
 		Origin:      message.Origin,
 		ID:          0,
@@ -378,7 +477,6 @@ func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
 		Destination: message.Destination,
 		HopLimit:    message.HopLimit,
 	}
-
 	gossiper.handlePrivatePacket(&util.GossipPacket{
 		Private: privMessage,
 	})

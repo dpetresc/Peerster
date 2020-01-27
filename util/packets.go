@@ -225,6 +225,7 @@ func (secMsg *SecureMessage)  String() string{
 type TorMessage struct{
 	CircuitID uint32
 	Data []byte
+	NextHop string
 }
 
 
