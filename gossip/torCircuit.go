@@ -1,6 +1,10 @@
 package gossip
 
-import "sync"
+import (
+	"fmt"
+	"github.com/dpetresc/Peerster/util"
+	"sync"
+)
 
 /*
  *	identity	name of the node in the Tor circuit
@@ -41,6 +45,15 @@ type LockCircuits struct {
 	circuits         map[uint32]*Circuit
 	initiatedCircuit map[uint32]*InitiatedCircuit
 	sync.RWMutex
+}
+
+/*
+ * 	HandleClientTorMessage handles the messages coming from the client.
+ *	message *util.Message is the message sent by the client.
+ */
+func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
+	dest := *message.Destination
+	fmt.Println(dest)
 }
 
 func (gossiper *Gossiper) createCircuit(dest string) {
