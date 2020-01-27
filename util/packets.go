@@ -160,7 +160,7 @@ func (searchResult *SearchResult) PrintSearchMatch(origin string) {
  * 	4) ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
  *	5) ClientFinished is sent by A and contains the encrypted handshake
  *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
- *  6) ACK
+ *  6) ACKClientFinished
  *	7)+ Data are the secure messages
  */
 type MessageType uint32
@@ -171,7 +171,7 @@ const (
 	ChangeCipherSec
 	ServerFinished
 	ClientFinished
-	ACK
+	ACKClientFinished
 	Data
 )
 
@@ -193,6 +193,7 @@ type SecureMessage struct {
 	Origin        string
 	Destination   string
 	HopLimit      uint32
+	CTR  uint32
 }
 
 func (secMsg *SecureMessage) Bytes() []byte{

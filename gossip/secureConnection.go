@@ -4,6 +4,7 @@ import (
 	"github.com/dpetresc/Peerster/util"
 	"github.com/monnand/dhkx"
 	"sync"
+	"time"
 )
 
 /*
@@ -19,13 +20,18 @@ type TunnelIdentifier struct {
 	TimeoutChan       chan bool
 	Nonce             []byte
 	NextPacket        util.MessageType
-	Pending           []*util.SecureMessage
+	Pending           []interface{}
 	PrivateDH         *dhkx.DHKey
 	SharedKey         []byte
 	HandShakeMessages []*util.SecureMessage
 	CTRSet            map[uint32]bool
 	CTR               uint32
+	TimeOut           time.Duration
+	ACKsHandshake     chan bool
+	ACKs              map[uint32]chan bool
+	ConsecutiveTO	uint32
 }
+
 
 /*
  *	Connections keeps in memory all the connections of a node. This structure is not meant to be inherently thread safe.
