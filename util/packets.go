@@ -151,16 +151,17 @@ func (searchResult *SearchResult) PrintSearchMatch(origin string) {
 /*
  *	MessageType represents the different type of messages that can be exchanged during a secure communication.
  *
- *	ClientHello is sent by the node that initiates the communication (A). It contains a nonce of 32 bytes that identifies
+ *	1) ClientHello is sent by the node that initiates the communication (A). It contains a nonce of 32 bytes that identifies
  *	the communication.
- *	ServerHello is sent by the node reached by the initiator (B).It contains a 32 bytes nonce (the
+ *	2) ServerHello is sent by the node reached by the initiator (B).It contains a 32 bytes nonce (the
  *	one it previously received), its part of the Diffie-Hellman protocol and the signature of the Diffie-Hellman protocol.
- *	ChangeCipher is sent by A and contains its part of the Diffie-Hellman protocol and the signature
+ *	3) ChangeCipherSec is sent by A and contains its part of the Diffie-Hellman protocol and the signature
  *	of the Diffie-Hellman protocol.
- * 	ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
- *	ClientFinished is sent by A and contains the encrypted handshake
+ * 	4) ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
+ *	5) ClientFinished is sent by A and contains the encrypted handshake
  *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
- *	Data are the secure messages
+ *  6) ACK
+ *	7)+ Data are the secure messages
  */
 type MessageType uint32
 
@@ -174,8 +175,16 @@ const (
 	Data
 )
 
+type Flag uint32
+
+const (
+	Private Flag = iota
+	TOR
+)
+
 type SecureMessage struct {
 	MessageType   MessageType
+	Flag		  Flag
 	Nonce         []byte
 	DHPublic      []byte
 	DHSignature   []byte
@@ -207,26 +216,15 @@ func (secMsg *SecureMessage)  String() string{
 }
 
 /////////////////////////////////////TOR///////////////////////////////////////////////
-//On sérialise ce message et on le mets dans le payloads d'un secure message entre 2 noeuds
-type TORMessages struct{
-	PreviousHOP string 	//de qui on a reçu le message
-	NextHOP string		//à qui on doit forward le message (tu sais que t'es le dernier noeud si c'est égale à ton UID
-	CircuitID uint32	//id du circuit pour différencier les différents paths
-	Data []byte			//contient l'encryption du TORmessage pour le prochain noeud
+/*
+ *	PreviousHOP previous node in TOR
+ *	NextHOP 	next node in TOR, nil if you are the destination
+ *	CircuitID	id of the TOR circuit
+ *	Data		encrypted TOR message, or encrypted payload if destination
+ */
+type TORMessage struct{
+	CircuitID uint32
+	Data []byte
 }
-//Est-ce qu'on rend les messages reliables dans cette couche en utilisant des timers et des sequence number (en mode tcp)?
 
-//si on considère le destinataire comme l'exit node (pas besoin de sortir du réseau TOR):
-//Soit on crée un nouveau path dans l'autre sens et PreviousHOP dans le TORMessage = source
-//Soit on utilise le circuitID pour retourner les messages dans l'autre sens, destinataire ne sait pas forcément de qui vient le message
-
-//chaque noeud doit se souvenir des clés échangés pour chaque path (d'où le circuit ID) et des noeuds du path qu'il connait:
-//si initiateur, des clés avec tout le monde dans le path
-//si intermédiaire juste la clé avec l'initiateur
-
-//besoin de fonction:
-//select path: choisi le path
-//extend: extend le circuit et échange les clés symmetric avec DH
-//kill: détruit un path, aka vide toute la mémoire qui référence un circuit
-//==> on peut aussi ajouter une durée de vie pour chaque circuit
 

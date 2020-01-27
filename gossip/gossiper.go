@@ -72,9 +72,12 @@ type Gossiper struct {
 	lSearchMatches       *LockSearchMatches
 
 	// crypto
-	secure     bool
-	lConsensus *LockConsensus
+	secure      bool
+	lConsensus  *LockConsensus
 	connections *Connections
+
+	// TOR
+	lCircuits *LockCircuits
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
@@ -143,6 +146,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 
 	var lConsensus *LockConsensus
+	var lCircuits *LockCircuits
 	if secure {
 		lConsensus = &LockConsensus{
 			CAKey:           CAKey,
@@ -152,8 +156,15 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 			RWMutex:         sync.RWMutex{},
 		}
 		lConsensus.subscribeToConsensus()
+
+		lCircuits = &LockCircuits{
+			circuits:         make(map[uint32]*Circuit),
+			initiatedCircuit: make(map[uint32]*InitiatedCircuit),
+			RWMutex:          sync.RWMutex{},
+		}
 	} else {
 		lConsensus = nil
+		lCircuits = nil
 	}
 
 	return &Gossiper{
@@ -180,6 +191,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		secure:               secure,
 		lConsensus:           lConsensus,
 		connections:          NewConnections(),
+		lCircuits:            lCircuits,
 	}
 }
 
@@ -199,7 +211,7 @@ func (consensus *LockConsensus) subscribeToConsensus() {
 
 	buf := new(bytes.Buffer)
 	json.NewEncoder(buf).Encode(descriptor)
-	r, err := http.Post("http://" + util.CAAddress + "/subscription", "application/json; charset=utf-8", buf)
+	r, err := http.Post("http://"+util.CAAddress+"/subscription", "application/json; charset=utf-8", buf)
 	util.CheckError(err)
 	util.CheckHttpError(r)
 }
@@ -313,15 +325,3 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	gossiper.lAllMsg.Unlock()
 	return packetToSend
 }
-
-
-
-
-
-
-
-
-
-
-
-

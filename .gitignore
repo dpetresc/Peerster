@@ -6,8 +6,8 @@
 *.dylib
 *.pem
 Peerster
-client
-CA
+client/client
+CA/CA
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
@@ -17,3 +17,5 @@ _Downloads/
 
 _MyKeys/*
 !_MyKeys/CA
+
+*.odt
