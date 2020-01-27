@@ -179,7 +179,7 @@ type Flag uint32
 
 const (
 	Private Flag = iota
-	TOR
+	Tor
 )
 
 type SecureMessage struct {
@@ -217,12 +217,12 @@ func (secMsg *SecureMessage)  String() string{
 
 /////////////////////////////////////TOR///////////////////////////////////////////////
 /*
- *	PreviousHOP previous node in TOR
- *	NextHOP 	next node in TOR, nil if you are the destination
- *	CircuitID	id of the TOR circuit
- *	Data		encrypted TOR message, or encrypted payload if destination
+ *	PreviousHOP previous node in Tor
+ *	NextHOP 	next node in Tor, nil if you are the destination
+ *	CircuitID	id of the Tor circuit
+ *	Data		encrypted Tor message, or encrypted payload if destination
  */
-type TORMessage struct{
+type TorMessage struct{
 	CircuitID uint32
 	Data []byte
 }

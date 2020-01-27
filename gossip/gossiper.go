@@ -72,16 +72,16 @@ type Gossiper struct {
 	lSearchMatches       *LockSearchMatches
 
 	// crypto
-	secure      bool
+	tor         bool
 	lConsensus  *LockConsensus
 	connections *Connections
 
-	// TOR
+	// Tor
 	lCircuits *LockCircuits
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
-	rtimer int, secure bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
+	rtimer int, tor bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -147,7 +147,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	var lConsensus *LockConsensus
 	var lCircuits *LockCircuits
-	if secure {
+	if tor {
 		lConsensus = &LockConsensus{
 			CAKey:           CAKey,
 			identity:        name,
@@ -188,7 +188,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllChunks:           &lAllChunks,
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
-		secure:               secure,
+		tor:                  tor,
 		lConsensus:           lConsensus,
 		connections:          NewConnections(),
 		lCircuits:            lCircuits,

@@ -66,7 +66,7 @@ func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
 }
 
 /*
- *	sendSecureMessage sends a secure message of type Data created from a Message.
+ *	sendSecureMessage sends a tor message of type Data created from a Message.
  *	The payload has the following format: bytes(Nonce)||bytes(CTR)||bytes(text)
  *	where Nonce is 32 bytes long, CTR is 4 bytes long and text has a variable length.
  */
@@ -94,7 +94,7 @@ func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId *Tun
 }
 
 /*
- *	HandleSecureMessage handles the secure messages coming from other peer.
+ *	HandleSecureMessage handles the tor messages coming from other peer.
  *	secureMessage *util.SecureMessage is the message sent by the other peer.
  */
 func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage) {

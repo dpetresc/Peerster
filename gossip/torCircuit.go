@@ -3,18 +3,18 @@ package gossip
 import "sync"
 
 /*
- *	identity	name of the node in the TOR circuit
+ *	identity	name of the node in the Tor circuit
  *	key			shared key exhanged with the initiator of the circuit
  */
-type TORNode struct {
+type TorNode struct {
 	identity string
 	key      []byte
 }
 
 /*
- *	ID	id of the TOR circuit
- *	PreviousHOP previous node in TOR
- *	NextHOP 	next node in TOR, nil if you are the destination
+ *	ID	id of the Tor circuit
+ *	PreviousHOP previous node in Tor
+ *	NextHOP 	next node in Tor, nil if you are the destination
  *	SharedKey 	shared key exchanged with the source
  */
 type Circuit struct {
@@ -32,9 +32,9 @@ type Circuit struct {
  */
 type InitiatedCircuit struct {
 	ID         uint32
-	GuardNode  TORNode
-	MiddleNode TORNode
-	ExitNode   TORNode
+	GuardNode  TorNode
+	MiddleNode TorNode
+	ExitNode   TorNode
 }
 
 type LockCircuits struct {
