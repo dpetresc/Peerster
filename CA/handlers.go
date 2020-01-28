@@ -33,7 +33,7 @@ func SubscriptionHandler(w http.ResponseWriter, r *http.Request) {
 		newNodeRSAPublicKey, err := x509.ParsePKCS1PublicKey(descriptor.PublicKey)
 		util.CheckError(err)
 
-		if !util.VerifySignature(newNode, descriptor.Signature, newNodeRSAPublicKey) {
+		if !util.VerifyRSASignature(newNode, descriptor.Signature, newNodeRSAPublicKey) {
 			http.Error(w, "Signature isn't correct !", http.StatusUnauthorized)
 			return
 		}
@@ -56,7 +56,7 @@ func SubscriptionHandler(w http.ResponseWriter, r *http.Request) {
 		mConsensus.NodesIDPublicKeys[newNodeIdentityStr] = newNodeRSAPublicKey
 		b, err := json.Marshal(mConsensus.NodesIDPublicKeys)
 		util.CheckError(err)
-		mConsensus.Signature = util.SignByteMessage(b, privateKey)
+		mConsensus.Signature = util.SignRSA(b, privateKey)
 		mConsensus.Unlock()
 	}
 }

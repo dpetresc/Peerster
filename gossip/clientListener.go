@@ -115,6 +115,10 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 						//TODO: add something for the GUI?
 					}
 				}
+			} else {
+				// "public" message
+				packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
+				go gossiper.rumormonger("", "", &packetToSend, false)
 			}
 		}else if packet.Request != nil {
 			if packet.Destination == nil {

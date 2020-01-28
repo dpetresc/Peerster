@@ -216,6 +216,7 @@ func (secMsg *SecureMessage) String() string {
 		secMsg.MessageType, secMsg.Nonce, secMsg.DHPublic, secMsg.DHSignature, secMsg.EncryptedData, secMsg.GCMNonce, secMsg.Origin, secMsg.Destination, secMsg.HopLimit)
 }
 
+/////////////////////////////////////TOR///////////////////////////////////////////////
 type TorFlag uint32
 
 const (
@@ -224,16 +225,18 @@ const (
 	Payload
 )
 
-/////////////////////////////////////TOR///////////////////////////////////////////////
 /*
- *	PreviousHOP previous node in Tor
- *	NextHOP 	next node in Tor, nil if you are the destination
- *	CircuitID	id of the Tor circuit
- *	Data		encrypted Tor message, or encrypted payload if destination
+ *	CircuitID: All flags. The id of the Tor circuit
+ *	NextHOP: Extend flag. The next node in Tor, nil if you are the final destination
+ *	DHPublic: Create or Extend flag. The DH public part (encrypted in request and in clear in response)
+ *	DHSharedHash: Create or Extend flag. The hash of the shared key (in response)
+ *	Data: Payload flag. The encrypted Tor message, or the encrypted payload if destination
  */
 type TorMessage struct {
-	CircuitID uint32
-	Flag      TorFlag
-	NextHop   string
-	Data      []byte
+	CircuitID    uint32
+	Flag         TorFlag
+	NextHop      string
+	DHPublic     []byte
+	DHSharedHash []byte
+	Data         []byte
 }

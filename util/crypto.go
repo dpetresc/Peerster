@@ -118,9 +118,19 @@ func GetPrivateKey(path, name string) *rsa.PrivateKey {
 }
 
 /*
+ * Encrypt a message with a private key
+ */
+func EncryptRSA(message []byte, publicKey *rsa.PublicKey) []byte {
+	encryption, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, message)
+	CheckError(err)
+
+	return encryption
+}
+
+/*
  * Sign a message with a private key
  */
-func SignByteMessage(message []byte, privateKey *rsa.PrivateKey) []byte {
+func SignRSA(message []byte, privateKey *rsa.PrivateKey) []byte {
 	hashed := sha256.Sum256(message)
 	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashed[:])
 	CheckError(err)
@@ -132,7 +142,7 @@ func SignByteMessage(message []byte, privateKey *rsa.PrivateKey) []byte {
  *	Verifies that the signature of the message made with the key corresponding to the given public key
  *	is correct.
  */
-func VerifySignature(message, signature []byte, publicKey *rsa.PublicKey) bool {
+func VerifyRSASignature(message, signature []byte, publicKey *rsa.PublicKey) bool {
 	hashed := sha256.Sum256(message)
 	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hashed[:], signature)
 	return err == nil

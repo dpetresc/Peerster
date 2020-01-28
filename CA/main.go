@@ -32,7 +32,7 @@ func main() {
 	nodesPublicKeys := make(map[string]*rsa.PublicKey)
 	b, err := json.Marshal(nodesPublicKeys)
 	util.CheckError(err)
-	signature := util.SignByteMessage(b, privateKey)
+	signature := util.SignRSA(b, privateKey)
 	mConsensus = consensus{
 		NodesIDPublicKeys: nodesPublicKeys,
 		Signature:         signature,

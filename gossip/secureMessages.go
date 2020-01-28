@@ -15,7 +15,7 @@ const HopLimit = 10
 
 /* TODO REMOVE
  */
-func (gossiper *Gossiper) HandleMessageTorSecure(message *util.TorMessage) {
+func (gossiper *Gossiper) HandleMessageTorSecure(message *util.TorMessage, destination string) {
 
 }
 
@@ -206,7 +206,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		publicDH := privateDH.Bytes()
 
 		gossiper.lConsensus.RLock()
-		DHSignature := util.SignByteMessage(publicDH, gossiper.lConsensus.privateKey)
+		DHSignature := util.SignRSA(publicDH, gossiper.lConsensus.privateKey)
 		gossiper.lConsensus.RUnlock()
 
 		response := &util.SecureMessage{
@@ -233,7 +233,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 	gossiper.lConsensus.RLock()
 	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
-		if util.VerifySignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
+		if util.VerifyRSASignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
 			tunnelId.NextPacket = util.ServerFinished
 
@@ -250,7 +250,7 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			tunnelId.SharedKey = shaKeyShared[:]
 
 			publicDH := privateDH.Bytes()
-			DHSignature := util.SignByteMessage(publicDH, gossiper.lConsensus.privateKey)
+			DHSignature := util.SignRSA(publicDH, gossiper.lConsensus.privateKey)
 
 			response := &util.SecureMessage{
 				MessageType: util.ChangeCipherSec,
@@ -280,7 +280,7 @@ func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
 	defer gossiper.lConsensus.RUnlock()
 
 	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
-		if util.VerifySignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
+		if util.VerifyRSASignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
 			tunnelId.NextPacket = util.ClientFinished
 
@@ -407,7 +407,7 @@ func (gossiper *Gossiper) encryptHandshake(tunnelId *TunnelIdentifier) ([]byte, 
 
 /*
  *	checkFinishedMessages verifies that the received encrypted data in a finished message,
- *	i.e., either Client- or ServeFinished was correctly encrypted with the given nonce and the computed shared key.
+ *	i.e., either Client- or ServeFinished was correctly encrypted with the given nonce and the computed shared Key.
  */
 func (gossiper *Gossiper) checkFinishedMessages(ciphertext, nonce []byte, tunnelId *TunnelIdentifier) bool {
 	toEncrypt := make([]byte, 0)

@@ -200,7 +200,7 @@ func (consensus *LockConsensus) subscribeToConsensus() {
 	publicKey := x509.MarshalPKCS1PublicKey(&consensus.privateKey.PublicKey)
 	identity := []byte(consensus.identity)
 	node := append(publicKey[:], identity[:]...)
-	signature := util.SignByteMessage(node, consensus.privateKey)
+	signature := util.SignRSA(node, consensus.privateKey)
 	consensus.RUnlock()
 
 	descriptor := Descriptor{
@@ -227,7 +227,7 @@ func (gossiper *Gossiper) getConsensus() {
 
 	nodesIDPublicKeys, err := json.Marshal(CAResponse.NodesIDPublicKeys)
 	gossiper.lConsensus.Lock()
-	if !util.VerifySignature(nodesIDPublicKeys, CAResponse.Signature, gossiper.lConsensus.CAKey) {
+	if !util.VerifyRSASignature(nodesIDPublicKeys, CAResponse.Signature, gossiper.lConsensus.CAKey) {
 		err = errors.New("CA corrupted")
 		util.CheckError(err)
 		return
