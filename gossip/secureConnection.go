@@ -24,14 +24,14 @@ type TunnelIdentifier struct {
 	PrivateDH         *dhkx.DHKey
 	SharedKey         []byte
 	HandShakeMessages []*util.SecureMessage
-	CTRSet            map[uint32]bool
 	CTR               uint32
 	TimeOut           time.Duration
 	ACKsHandshake     chan bool
 	ACKs              map[uint32]chan bool
-	ConsecutiveTO	uint32
+	ConsecutiveTO     uint32
+	ToDeliver         []*util.SecureMessage
+	NextID            uint32
 }
-
 
 /*
  *	Connections keeps in memory all the connections of a node. This structure is not meant to be inherently thread safe.
