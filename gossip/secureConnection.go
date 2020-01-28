@@ -20,7 +20,7 @@ type TunnelIdentifier struct {
 	TimeoutChan       chan bool
 	Nonce             []byte
 	NextPacket        util.MessageType
-	Pending           []interface{}
+	Pending           [][]byte
 	PrivateDH         *dhkx.DHKey
 	SharedKey         []byte
 	HandShakeMessages []*util.SecureMessage

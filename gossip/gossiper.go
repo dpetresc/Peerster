@@ -73,6 +73,7 @@ type Gossiper struct {
 
 	// crypto
 	tor         bool
+	secure      bool
 	lConsensus  *LockConsensus
 	connections *Connections
 
@@ -81,7 +82,7 @@ type Gossiper struct {
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
-	rtimer int, tor bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
+	rtimer int, tor bool, secure bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -147,7 +148,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	var lConsensus *LockConsensus
 	var lCircuits *LockCircuits
-	if tor {
+	if tor || secure {
 		lConsensus = &LockConsensus{
 			CAKey:           CAKey,
 			identity:        name,
@@ -189,6 +190,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
 		tor:                  tor,
+		secure:               secure,
 		lConsensus:           lConsensus,
 		connections:          NewConnections(),
 		lCircuits:            lCircuits,
@@ -238,7 +240,8 @@ func (gossiper *Gossiper) getConsensus() {
 
 func (gossiper *Gossiper) Consensus() {
 	gossiper.getConsensus()
-	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Minute)
+	//TODO MODIFIED
+	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -325,5 +328,3 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	gossiper.lAllMsg.Unlock()
 	return packetToSend
 }
-
-

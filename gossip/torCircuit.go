@@ -64,6 +64,6 @@ func selectPath() {
 
 }
 
-func (gossiper *Gossiper) HandleMessageSecureTor(torMessage *util.TorMessage, source string) {
+func (gossiper *Gossiper) secureToTor(bytesData []byte, source string) {
 	return
 }
