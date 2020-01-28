@@ -155,7 +155,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 			nodesPublicKeys: nil,
 			RWMutex:         sync.RWMutex{},
 		}
-		lConsensus.subscribeToConsensus()
+		lConsensus.sendDescriptorToConsensus()
 
 		lCircuits = &LockCircuits{
 			circuits:         make(map[uint32]*Circuit),
@@ -195,7 +195,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 }
 
-func (consensus *LockConsensus) subscribeToConsensus() {
+func (consensus *LockConsensus) sendDescriptorToConsensus() {
 	consensus.RLock()
 	publicKey := x509.MarshalPKCS1PublicKey(&consensus.privateKey.PublicKey)
 	identity := []byte(consensus.identity)
@@ -211,12 +211,14 @@ func (consensus *LockConsensus) subscribeToConsensus() {
 
 	buf := new(bytes.Buffer)
 	json.NewEncoder(buf).Encode(descriptor)
-	r, err := http.Post("http://"+util.CAAddress+"/subscription", "application/json; charset=utf-8", buf)
+	r, err := http.Post("http://"+util.CAAddress+"/descriptor", "application/json; charset=utf-8", buf)
 	util.CheckError(err)
 	util.CheckHttpError(r)
 }
 
 func (gossiper *Gossiper) getConsensus() {
+	// TODO sendDescriptorToConsensus
+	// TODO update circuit with new consensus
 	r, err := http.Get("http://" + util.CAAddress + "/consensus")
 	util.CheckError(err)
 	util.CheckHttpError(r)

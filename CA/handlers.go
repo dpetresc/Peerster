@@ -20,7 +20,7 @@ func ConsensusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func SubscriptionHandler(w http.ResponseWriter, r *http.Request) {
+func DescriptorHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "POST":
@@ -37,6 +37,8 @@ func SubscriptionHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Signature isn't correct !", http.StatusUnauthorized)
 			return
 		}
+
+		// TODO change
 		mConsensus.Lock()
 		if key, ok := mConsensus.NodesIDPublicKeys[newNodeIdentityStr]; ok {
 			if !bytes.Equal(x509.MarshalPKCS1PublicKey(key), descriptor.PublicKey) {
