@@ -220,7 +220,6 @@ func (secMsg *SecureMessage) Bytes() []byte {
 	bytes = append(bytes, secMsg.GCMNonce...)
 	bytes = append(bytes, []byte(secMsg.Origin)...)
 	bytes = append(bytes, []byte(secMsg.Destination)...)
-	bytes = append(bytes, []byte(strconv.Itoa(int(secMsg.HopLimit)))...)
 	return bytes
 
 }
