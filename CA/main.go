@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
 	"sync"
@@ -11,9 +12,25 @@ import (
 
 // TODO ajouter handle des noeuds qui crash
 // TODO gérer le timer du consensus dans le CA
+
+/*
+ * AllNodesIDPublicKeys the nodes and their publick key that are taken into account in this consensus timelapse
+ * Signature	the signature of the consensus list
+ */
 type consensus struct {
 	NodesIDPublicKeys map[string]*rsa.PublicKey
 	Signature         []byte
+	sync.RWMutex
+}
+
+/*
+ * AllNodesIDPublicKeys all the nodes with their public key that were in the consensus in the past and
+ * the new ones subscribing during this consensus timelapse
+ * NodesRunning the nodes still runing that pinged the consensus during this consensus timelapse
+ */
+type consensusTracking struct {
+	AllNodesIDPublicKeys map[string]*rsa.PublicKey
+	NodesRunning         map[string]bool
 	sync.RWMutex
 }
 
@@ -27,14 +44,14 @@ var privateKey *rsa.PrivateKey
 
 var mConsensus consensus
 
+var mConsensusTracking consensusTracking
+
 func setConsensus(nodesPublicKeys map[string]*rsa.PublicKey) {
 	b, err := json.Marshal(nodesPublicKeys)
 	util.CheckError(err)
 	signature := util.SignRSA(b, privateKey)
-	mConsensus = consensus{
-		NodesIDPublicKeys: nodesPublicKeys,
-		Signature:         signature,
-	}
+	mConsensus.NodesIDPublicKeys =  nodesPublicKeys
+	mConsensus.Signature = signature
 }
 
 func updateConsensus() {
@@ -44,8 +61,18 @@ func updateConsensus() {
 		select {
 		case <-ticker.C:
 			mConsensus.Lock()
-			// TODO change setConsensus(mConsensus.NodesIDPublicKeys) to tempConsensus ???
-			setConsensus(mConsensus.NodesIDPublicKeys)
+			mConsensusTracking.RLock()
+			currNodesPublicKeys := make(map[string]*rsa.PublicKey)
+			for node, _ := range mConsensusTracking.NodesRunning {
+				if key, ok := mConsensusTracking.AllNodesIDPublicKeys[node]; ok {
+					currNodesPublicKeys[node] = key
+				} else {
+					// should never happen
+					fmt.Println("PROBLEM")
+				}
+			}
+			setConsensus(currNodesPublicKeys)
+			mConsensusTracking.RUnlock()
 			mConsensus.Unlock()
 		}
 	}
@@ -56,6 +83,11 @@ func main() {
 	util.SavePublicKey(util.KeysFolderPath, &privateKey.PublicKey)
 	nodesPublicKeys := make(map[string]*rsa.PublicKey)
 	setConsensus(nodesPublicKeys)
+	mConsensusTracking = consensusTracking{
+		AllNodesIDPublicKeys: make(map[string]*rsa.PublicKey),
+		NodesRunning:         make(map[string]bool),
+		RWMutex:              sync.RWMutex{},
+	}
 
 	go func() {
 		http.HandleFunc("/consensus", ConsensusHandler)

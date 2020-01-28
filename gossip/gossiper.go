@@ -73,6 +73,7 @@ type Gossiper struct {
 
 	// crypto
 	tor         bool
+	secure      bool
 	lConsensus  *LockConsensus
 	connections *Connections
 
@@ -81,7 +82,7 @@ type Gossiper struct {
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
-	rtimer int, tor bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
+	rtimer int, tor bool, secure bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -147,7 +148,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	var lConsensus *LockConsensus
 	var lCircuits *LockCircuits
-	if tor {
+	if tor || secure {
 		lConsensus = &LockConsensus{
 			CAKey:           CAKey,
 			identity:        name,
@@ -159,7 +160,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 		lCircuits = &LockCircuits{
 			circuits:         make(map[uint32]*Circuit),
-			initiatedCircuit: make(map[uint32]*InitiatedCircuit),
+			initiatedCircuit: make(map[string]*InitiatedCircuit),
 			RWMutex:          sync.RWMutex{},
 		}
 	} else {
@@ -189,6 +190,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
 		tor:                  tor,
+		secure:               secure,
 		lConsensus:           lConsensus,
 		connections:          NewConnections(),
 		lCircuits:            lCircuits,
@@ -210,16 +212,15 @@ func (consensus *LockConsensus) sendDescriptorToConsensus() {
 	}
 
 	buf := new(bytes.Buffer)
-	json.NewEncoder(buf).Encode(descriptor)
+	err := json.NewEncoder(buf).Encode(descriptor)
+	util.CheckError(err)
 	r, err := http.Post("http://"+util.CAAddress+"/descriptor", "application/json; charset=utf-8", buf)
 	util.CheckError(err)
 	util.CheckHttpError(r)
 }
 
 func (gossiper *Gossiper) getConsensus() {
-	// TODO sendDescriptorToConsensus
-	// TODO update circuit with new consensus
-	r, err := http.Get("http://" + util.CAAddress + "/consensus")
+	r, err := http.Get("http://" + util.CAAddress + "/consensus" + "?node=" + gossiper.Name)
 	util.CheckError(err)
 	util.CheckHttpError(r)
 	var CAResponse CAConsensus
@@ -235,6 +236,7 @@ func (gossiper *Gossiper) getConsensus() {
 		return
 	}
 	gossiper.lConsensus.nodesPublicKeys = CAResponse.NodesIDPublicKeys
+	// TODO update circuit with new consensus
 	gossiper.lConsensus.Unlock()
 }
 
