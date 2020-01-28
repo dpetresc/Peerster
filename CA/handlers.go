@@ -58,7 +58,7 @@ func DescriptorHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			for _, key := range mConsensusTracking.AllNodesIDPublicKeys {
 				if bytes.Equal(x509.MarshalPKCS1PublicKey(key), descriptor.PublicKey) {
-					http.Error(w, "Public Key has already exist in consensus !", http.StatusUnauthorized)
+					http.Error(w, "Public SharedKey has already exist in consensus !", http.StatusUnauthorized)
 					mConsensusTracking.Unlock()
 					return
 				}

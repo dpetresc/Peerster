@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"github.com/monnand/dhkx"
 	"io"
 	"os"
 )
@@ -20,6 +21,25 @@ var CAAddress = "127.0.0.1:4343"
 
 // folder where the keys needed by this node are stored
 var KeysFolderPath = "./_MyKeys/"
+
+// DH group used in all the Peerster crypto
+var DHGroupID = 0
+
+/*
+ * Check if two []byte are equal
+ */
+func Equals(tab1, tab2 []byte) bool{
+	if len(tab1) != len(tab2){
+		return false
+	}
+
+	for i := range tab1 {
+		if tab1[i] != tab2[i]{
+			return false
+		}
+	}
+	return true
+}
 
 /****************************** RSA ************************************/
 
@@ -162,7 +182,35 @@ func VerifyRSASignature(message, signature []byte, publicKey *rsa.PublicKey) boo
 }
 
 /****************************** DH + GCM ************************************/
+/*
+ * CreateDHPartialKey creates a partial key for DH protocol
+ */
+func CreateDHPartialKey() (*dhkx.DHKey, []byte) {
+	g, err := dhkx.GetGroup(DHGroupID)
+	CheckError(err)
 
+	privateDH, err := g.GeneratePrivateKey(nil)
+	CheckError(err)
+
+	publicDH := privateDH.Bytes()
+	return privateDH, publicDH
+}
+
+/*
+ *	CreateDHSharedKey creates shared key from
+ *	dhPublic the public partial key
+ *	privateDH the private partial key
+ */
+func CreateDHSharedKey(dhPublic []byte, privateDH *dhkx.DHKey) []byte {
+	g, err := dhkx.GetGroup(DHGroupID)
+	CheckError(err)
+
+	sharedKey, err := g.ComputeKey(dhkx.NewPublicKey(dhPublic), privateDH)
+	CheckError(err)
+	shaKeyShared := sha256.Sum256(sharedKey.Bytes())
+	shaKeySharedBytes := shaKeyShared[:]
+	return shaKeySharedBytes
+}
 
 /*
  *	EncryptGCM encrypts the given plaintext using GCM encryption.

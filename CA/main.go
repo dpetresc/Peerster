@@ -10,9 +10,6 @@ import (
 	"time"
 )
 
-// TODO ajouter handle des noeuds qui crash
-// TODO gérer le timer du consensus dans le CA
-
 /*
  * AllNodesIDPublicKeys the nodes and their publick key that are taken into account in this consensus timelapse
  * Signature	the signature of the consensus list

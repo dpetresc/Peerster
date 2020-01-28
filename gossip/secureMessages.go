@@ -123,7 +123,7 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 		gossiper.connections.Lock()
 		defer gossiper.connections.Unlock()
 		if tunnelId, ok := gossiper.connections.Conns[secureMessage.Origin]; ok {
-			if tunnelId.NextPacket == secureMessage.MessageType && Equals(secureMessage.Nonce, tunnelId.Nonce) {
+			if tunnelId.NextPacket == secureMessage.MessageType && util.Equals(secureMessage.Nonce, tunnelId.Nonce) {
 
 				tunnelId.TimeoutChan <- true
 				tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
@@ -154,19 +154,6 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 			gossiper.handleClientHello(secureMessage)
 		}
 	}
-}
-
-func Equals(nonce1, nonce2 []byte) bool{
-	if len(nonce1) != len(nonce2){
-		return false
-	}
-
-	for i := range nonce1{
-		if nonce1[i] != nonce2[i]{
-			return false
-		}
-	}
-	return true
 }
 
 /*
@@ -368,7 +355,7 @@ func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
 	receivedCTRBytes := plaintext[32:36]
 	receivedCTR := binary.LittleEndian.Uint32(receivedCTRBytes)
 
-	if _,ok := tunnelId.CTRSet[receivedCTR]; ok || !Equals(receivedNonce, message.Nonce){
+	if _,ok := tunnelId.CTRSet[receivedCTR]; ok || !util.Equals(receivedNonce, message.Nonce){
 		return
 	}else{
 		tunnelId.CTRSet[receivedCTR] = true
@@ -406,7 +393,7 @@ func (gossiper *Gossiper) encryptHandshake(tunnelId *TunnelIdentifier) ([]byte, 
 
 /*
  *	checkFinishedMessages verifies that the received encrypted data in a finished message,
- *	i.e., either Client- or ServeFinished was correctly encrypted with the given nonce and the computed shared Key.
+ *	i.e., either Client- or ServeFinished was correctly encrypted with the given nonce and the computed shared SharedKey.
  */
 func (gossiper *Gossiper) checkFinishedMessages(ciphertext, nonce []byte, tunnelId *TunnelIdentifier) bool {
 	toEncrypt := make([]byte, 0)

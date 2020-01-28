@@ -10,18 +10,20 @@ import (
 
 /*
  *	Identity	name of the node in the Tor circuit
- *	Key			shared Key exhanged with the initiator of the circuit
+ *	PartialPrivateKey this node's partial private DH key
+ *	SharedKey			shared SharedKey exchanged with the initiator of the circuit
  */
 type TorNode struct {
-	Identity string
-	Key      []byte
+	Identity          string
+	PartialPrivateKey *dhkx.DHKey
+	SharedKey         []byte
 }
 
 /*
  *	ID	id of the Tor circuit
  *	PreviousHOP previous node in Tor
  *	NextHOP 	next node in Tor, nil if you are the destination
- *	SharedKey 	shared Key exchanged with the source
+ *	SharedKey 	shared SharedKey exchanged with the source
  */
 type Circuit struct {
 	ID          uint32
@@ -68,46 +70,30 @@ func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*uti
 	newCircuit := &InitiatedCircuit{
 		ID: rand.Uint32(),
 		GuardNode: &TorNode{
-			Identity: nodes[0],
-			Key:      nil,
+			Identity:          nodes[0],
+			PartialPrivateKey: nil,
+			SharedKey:         nil,
 		},
 		MiddleNode: &TorNode{
-			Identity: nodes[1],
-			Key:      nil,
+			Identity:          nodes[1],
+			PartialPrivateKey: nil,
+			SharedKey:         nil,
 		},
 		ExitNode: &TorNode{
-			Identity: dest,
-			Key:      nil,
+			Identity:          dest,
+			PartialPrivateKey: nil,
+			SharedKey:         nil,
 		},
 		NbInitiated: 0,
 		Pending:     make([]*util.PrivateMessage, 0, len(privateMessages)),
 	}
 	newCircuit.Pending = privateMessages
+	createTorMessage := gossiper.createCreateRequest(newCircuit.ID, newCircuit.GuardNode)
+
 	// add new Circuit to state
 	gossiper.lCircuits.initiatedCircuit[dest] = newCircuit
-
-	// Diffie Helman
-	g, err := dhkx.GetGroup(0)
-	util.CheckError(err)
-	privateDH, err := g.GeneratePrivateKey(nil)
-	util.CheckError(err)
-	DHPublic := privateDH.Bytes()
-
-	// encrypt with guard node key
-	DHPublicEncrypted := util.EncryptRSA(DHPublic, gossiper.lConsensus.nodesPublicKeys[newCircuit.GuardNode.Identity])
-
-	torMessage := &util.TorMessage{
-		CircuitID:    newCircuit.ID,
-		Flag:         util.Create,
-		NextHop:      "",
-		DHPublic:     DHPublicEncrypted,
-		DHSharedHash: nil,
-		Nonce:        nil,
-		Data:         nil,
-	}
+	go gossiper.HandleMessageTorSecure(createTorMessage, newCircuit.GuardNode.Identity)
 	gossiper.lConsensus.RUnlock()
-
-	go gossiper.HandleMessageTorSecure(torMessage, newCircuit.GuardNode.Identity)
 }
 
 /*
