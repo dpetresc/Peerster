@@ -15,8 +15,7 @@ const HopLimit = 10
 
 /* TODO REMOVE
  */
-func (gossiper *Gossiper) HandleMessageTorSecure(message *util.TorMessage, destination string) {
-
+func (gossiper *Gossiper) SecureBytesConsumer(bytes []byte, destination string) {
 }
 
 /*

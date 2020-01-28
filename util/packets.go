@@ -230,6 +230,7 @@ const (
  *	NextHOP: Extend flag. The next node in Tor, nil if you are the final destination
  *	DHPublic: Create or Extend flag. The DH public part (encrypted in request and in clear in response)
  *	DHSharedHash: Create or Extend flag. The hash of the shared key (in response)
+ *	Nonce: Used for encryption when the payload is encrypted
  *	Data: Payload flag. The encrypted Tor message, or the encrypted payload if destination
  */
 type TorMessage struct {
@@ -238,5 +239,6 @@ type TorMessage struct {
 	NextHop      string
 	DHPublic     []byte
 	DHSharedHash []byte
+	Nonce        []byte
 	Data         []byte
 }

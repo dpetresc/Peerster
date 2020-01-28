@@ -21,6 +21,8 @@ var CAAddress = "127.0.0.1:4343"
 // folder where the keys needed by this node are stored
 var KeysFolderPath = "./_MyKeys/"
 
+/****************************** RSA ************************************/
+
 func readKeyFromFile(path string) *pem.Block {
 	privateKeyFile, err := os.Open(path)
 	CheckError(err)
@@ -129,6 +131,16 @@ func EncryptRSA(message []byte, publicKey *rsa.PublicKey) []byte {
 }
 
 /*
+ * Decrypt a message with a private key
+ */
+func DecryptRSA(message []byte, privateKey *rsa.PrivateKey) []byte {
+	message, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, message)
+	CheckError(err)
+
+	return message
+}
+
+/*
  * Sign a message with a private key
  */
 func SignRSA(message []byte, privateKey *rsa.PrivateKey) []byte {
@@ -148,6 +160,9 @@ func VerifyRSASignature(message, signature []byte, publicKey *rsa.PublicKey) boo
 	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hashed[:], signature)
 	return err == nil
 }
+
+/****************************** DH + GCM ************************************/
+
 
 /*
  *	EncryptGCM encrypts the given plaintext using GCM encryption.
