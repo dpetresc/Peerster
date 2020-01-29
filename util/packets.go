@@ -162,7 +162,7 @@ func (searchResult *SearchResult) PrintSearchMatch(origin string) {
  *	5) ClientFinished is sent by A and contains the encrypted handshake
  *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
  *  6) ACK
- *	7)+ Data are the secure messages
+ *	7)+ Payload are the secure messages
  */
 type MessageType uint32
 
@@ -222,7 +222,15 @@ type TorFlag uint32
 const (
 	Create TorFlag = iota
 	Extend
-	Payload
+	Relay
+	TorData
+)
+
+type TorMessageType uint32
+
+const (
+	Request TorMessageType = iota
+	Reply
 )
 
 /*
@@ -230,15 +238,16 @@ const (
  *	NextHOP: Extend flag. The next node in Tor, nil if you are the final destination
  *	DHPublic: Create or Extend flag. The DH public part (encrypted in request and in clear in response)
  *	DHSharedHash: Create or Extend flag. The hash of the shared key (in response)
- *	Nonce: Used for encryption when the payload is encrypted
- *	Data: Payload flag. The encrypted Tor message, or the encrypted payload if destination
+ *	Nonce: Relay flag. Used for encryption when the payload is encrypted
+ *	Payload: Relay or TorData. The encrypted Tor message, or the data if destination
  */
 type TorMessage struct {
 	CircuitID    uint32
 	Flag         TorFlag
+	Type         TorMessageType
 	NextHop      string
 	DHPublic     []byte
 	DHSharedHash []byte
 	Nonce        []byte
-	Data         []byte
+	Payload      []byte
 }

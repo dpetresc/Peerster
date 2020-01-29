@@ -71,7 +71,7 @@ func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
 }
 
 /*
- *	sendSecureMessage sends a tor message of type Data created from a Message.
+ *	sendSecureMessage sends a tor message of type Payload created from a Message.
  *	The payload has the following format: bytes(Nonce)||bytes(CTR)||bytes(text)
  *	where Nonce is 32 bytes long, CTR is 4 bytes long and text has a variable length.
  */
