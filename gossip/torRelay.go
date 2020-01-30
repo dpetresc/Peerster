@@ -127,8 +127,9 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 					gossiper.sendTorToSecure(privateMessage, circuit)
 					gossiper.handlePrivatePacketTor(privateMessage, gossiper.Name, circuit.ID)
 				}
+				circuit.Pending = make([]*util.PrivateMessage, 0, 0)
 			}
-		} else if circuit.NbCreated > 3 {
+		} else if circuit.NbCreated >= 3 {
 			// we receive data replies from the exit node
 			torMessagePayload := gossiper.decrpytTorMessageFromRelay(torMessageSecond, circuit.ExitNode.SharedKey)
 			if torMessagePayload.Flag != util.TorData {
@@ -136,7 +137,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				fmt.Println("PROBLEM !")
 				return
 			}
-			privateMessage := privateMessageFromTorData(torMessage)
+			privateMessage := privateMessageFromTorData(torMessagePayload)
 			gossiper.handlePrivatePacketTor(privateMessage, circuit.ExitNode.Identity, circuit.ID)
 		}
 	} else {
@@ -147,6 +148,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 
 func (gossiper *Gossiper) handlePrivatePacketTor(privateMessage *util.PrivateMessage, origin string, cID uint32) {
 	privateMessage.Origin = origin
+	fmt.Println(cID)
 	privateMessage.PrintPrivateMessage()
 	gossiper.LLastPrivateMsg.Lock()
 	gossiper.LLastPrivateMsg.LastPrivateMsgTor[cID] = append(gossiper.LLastPrivateMsg.LastPrivateMsgTor[cID], privateMessage)

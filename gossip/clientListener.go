@@ -89,7 +89,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				fmt.Println("Empty keywords")
 			}
 		} else if packet.Text != "" {
-			if packet.Destination != nil {
+			if packet.Destination != nil || packet.CID != nil {
 				// private message
 				if gossiper.tor {
 					// private secure message

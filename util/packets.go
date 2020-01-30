@@ -268,6 +268,6 @@ type TorMessage struct {
 }
 
 func (torMessage *TorMessage) String() string {
-	return fmt.Sprintf("ID: %d \n DHPublic %x \n" +
+	return fmt.Sprintf("ID: %d \n DHPublic: %x \n" +
 		"DHSharedHash: %x", torMessage.CircuitID, torMessage.DHPublic, torMessage.DHSharedHash)
 }

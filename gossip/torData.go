@@ -12,12 +12,19 @@ import (
  *	message *util.Message is the message sent by the client.
  */
 func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
-	dest := *message.Destination
+	var dest string
+	if message.Destination != nil {
+		dest = *message.Destination
+	} else {
+		dest = ""
+	}
 	privateMessage := gossiper.pivateMessageFromClient(message, dest)
 
 	// TODO ATTENTION LOCKS lCircuits puis ensuite lConsensus => CHANGE ???
 	gossiper.lCircuits.Lock()
+	gossiper.lConsensus.Lock()
 	if message.CID == nil {
+		// SEND
 		if circuit, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
 			if circuit.NbCreated == 3 {
 				// Tor circuit exists and is already initiated and ready to be used
@@ -31,6 +38,7 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
 			gossiper.initiateNewCircuit(dest, privateMessages)
 		}
 	} else {
+		// REPLY
 		if circuit, ok := gossiper.lCircuits.circuits[*message.CID]; ok {
 			gossiper.sendReplyPrivateMessage(privateMessage, circuit)
 			gossiper.handlePrivatePacketTor(privateMessage, gossiper.Name, circuit.ID)
@@ -38,6 +46,7 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
 			fmt.Printf("Can not reply to message on circuit %d because it expired", *message.CID)
 		}
 	}
+	gossiper.lConsensus.Unlock()
 	gossiper.lCircuits.Unlock()
 }
 
@@ -47,7 +56,8 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
  * circuit: the circuit on wich the private message should be sent
  */
 func (gossiper *Gossiper) sendReplyPrivateMessage(privateMessage *util.PrivateMessage, circuit *Circuit) {
-	dataMessage, err := json.Marshal(*privateMessage)
+	//dataMessage, err := json.Marshal(*privateMessage)
+	dataMessage, err := json.Marshal(privateMessage)
 	util.CheckError(err)
 
 	dataTorMessage := &util.TorMessage{
@@ -65,6 +75,7 @@ func (gossiper *Gossiper) sendReplyPrivateMessage(privateMessage *util.PrivateMe
 	util.CheckError(err)
 
 	relayExit := gossiper.encryptDataInRelay(relayExitPayloadBytes, circuit.SharedKey, util.Reply, circuit.ID)
+
 	go gossiper.HandleTorToSecure(relayExit, circuit.PreviousHOP)
 }
 
@@ -94,7 +105,8 @@ func (gossiper *Gossiper) pivateMessageFromClient(message *util.Message, dest st
  * torDataFromPrivateMessage transforms a private message to a Tor data message
  */
 func torDataFromPrivateMessage(privateMessage *util.PrivateMessage, circuit *InitiatedCircuit) *util.TorMessage {
-	dataMessage, err := json.Marshal(*privateMessage)
+	//dataMessage, err := json.Marshal(*privateMessage)
+	dataMessage, err := json.Marshal(privateMessage)
 	util.CheckError(err)
 
 	torMessage := &util.TorMessage{

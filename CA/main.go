@@ -69,7 +69,7 @@ func updateConsensus() {
 		select {
 		case <-ticker.C:
 			mConsensus.Lock()
-			mConsensusTracking.RLock()
+			mConsensusTracking.Lock()
 			currNodesPublicKeys := make(map[string]*rsa.PublicKey)
 			for node, _ := range mConsensusTracking.NodesRunning {
 				if key, ok := mConsensusTracking.AllNodesIDPublicKeys[node]; ok {
@@ -80,7 +80,8 @@ func updateConsensus() {
 				}
 			}
 			setConsensus(currNodesPublicKeys)
-			mConsensusTracking.RUnlock()
+			mConsensusTracking.NodesRunning = make(map[string]bool)
+			mConsensusTracking.Unlock()
 			mConsensus.Unlock()
 		}
 	}

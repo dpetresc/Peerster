@@ -43,7 +43,6 @@ func (gossiper *Gossiper) HandleTorToSecure(torMessage *util.TorMessage, destina
 	gossiper.SecureBytesConsumer(torToSecure, destination)
 }
 
-
 /*
  * secureToTor extract the data received by the secure layer and calls the corresponding handler
  */
@@ -63,13 +62,16 @@ func (gossiper *Gossiper) secureToTor(bytesData []byte, source string) {
 func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source string) {
 	gossiper.lCircuits.Lock()
 	switch torMessage.Flag {
-		case util.Create: {
+	case util.Create:
+		{
 			switch torMessage.Type {
-				case util.Request: {
+			case util.Request:
+				{
 					// can only receive Create Request if you are an intermediate node or exit node
 					gossiper.HandleTorCreateRequest(torMessage, source)
 				}
-				case util.Reply: {
+			case util.Reply:
+				{
 					if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
 						// INTERMEDIATE NODE
 						gossiper.HandleTorIntermediateCreateReply(torMessage, source)
@@ -80,17 +82,20 @@ func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source 
 				}
 			}
 		}
-		case util.Relay: {
+	case util.Relay:
+		{
 			switch torMessage.Type {
-			case util.Request: {
-				// can only receive Relay Request if you are an intermediate node or exit node
-				gossiper.HandleTorRelayRequest(torMessage, source)
-			}
-				case util.Reply: {
+			case util.Request:
+				{
+					// can only receive Relay Request if you are an intermediate node or exit node
+					gossiper.HandleTorRelayRequest(torMessage, source)
+				}
+			case util.Reply:
+				{
 					if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
 						// INTERMEDIATE NODE
 						gossiper.HandleTorIntermediateRelayReply(torMessage, source)
-					}else {
+					} else {
 						// INITIATOR OF THE CIRCUIT
 						gossiper.HandleTorInitiatorRelayReply(torMessage, source)
 					}

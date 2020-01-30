@@ -33,7 +33,7 @@ func init() {
 	flag.Int64Var(&budget, "budget", -1, "budget for the file search (optional)")
 	flag.BoolVar(&secure, "sec", false, "option used to send encrypted private messages")
 	// if anonyme is false the destination knows who sent the message
-	flag.Int64Var(&cID, "circuit id", -1, "used when we reply to a Tor message")
+	flag.Int64Var(&cID, "cID", -1, "used when we reply to a Tor message")
 	flag.BoolVar(&anonyme, "anonyme", false, "option used to send remain anonyme while using Tor")
 
 	flag.Parse()
