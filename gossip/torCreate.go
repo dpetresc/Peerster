@@ -116,28 +116,10 @@ func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*uti
 		Pending:     make([]*util.PrivateMessage, 0, len(privateMessages)),
 	}
 	newCircuit.Pending = privateMessages
-
-	createTorMessage := gossiper.createInitiateRequest(newCircuit.ID, newCircuit.GuardNode)
-
-	// add new Circuit to state
-	gossiper.lCircuits.initiatedCircuit[dest] = newCircuit
-	go gossiper.HandleTorToSecure(createTorMessage, newCircuit.GuardNode.Identity)
-	gossiper.lConsensus.RUnlock()
-}
-
-/*
- *	createInitiateRequest - generate DH partial key and creates the Create TorMessage
- *	circuitID: the cicuit id
- *	toNode: the node we want to send the Create TorMessage to
- */
-func (gossiper *Gossiper) createInitiateRequest(circuitID uint32, toNode *TorNode) *util.TorMessage {
-	// DH
-	privateDH, publicDH := util.CreateDHPartialKey()
-	toNode.PartialPrivateKey = privateDH
-	// encrypt with guard node key
-	publicDHEncrypted := util.EncryptRSA(publicDH, gossiper.lConsensus.nodesPublicKeys[toNode.Identity])
-	initiateMessage := &util.TorMessage{
-		CircuitID:    circuitID,
+	
+	publicDHEncrypted := gossiper.generateAndEncryptPartialDHKey(newCircuit.GuardNode)
+	createTorMessage := &util.TorMessage{
+		CircuitID:    newCircuit.ID,
 		Flag:         util.Create,
 		Type:         util.Request,
 		NextHop:      "",
@@ -146,31 +128,29 @@ func (gossiper *Gossiper) createInitiateRequest(circuitID uint32, toNode *TorNod
 		Nonce:        nil,
 		Payload:      nil,
 	}
-	return initiateMessage
+
+	// add new Circuit to state
+	gossiper.lCircuits.initiatedCircuit[dest] = newCircuit
+
+	go gossiper.HandleTorToSecure(createTorMessage, newCircuit.GuardNode.Identity)
+	gossiper.lConsensus.RUnlock()
+}
+
+func (gossiper *Gossiper) generateAndEncryptPartialDHKey(toNode *TorNode) []byte {
+	// DH
+	privateDH, publicDH := util.CreateDHPartialKey()
+	toNode.PartialPrivateKey = privateDH
+	// encrypt with guard node key
+	publicDHEncrypted := util.EncryptRSA(publicDH, gossiper.lConsensus.nodesPublicKeys[toNode.Identity])
+	return publicDHEncrypted
 }
 
 /*
- *	findInitiatedCircuit finds the corresponding circuit when receiving a reply from the guard node
- *	torMessage the received message
- *	source the source node of the received message
- */
-func (gossiper *Gossiper) findInitiatedCircuit(torMessage *util.TorMessage, source string) *InitiatedCircuit {
-	var circuit *InitiatedCircuit = nil
-	for _, c := range gossiper.lCircuits.initiatedCircuit {
-		if c.ID == torMessage.CircuitID && c.GuardNode.Identity == source {
-			circuit = c
-			break
-		}
-	}
-	return circuit
-}
-
-/*
- *	extractAndVerifySharedKeyInitiateReply
+ *	extractAndVerifySharedKeyCreateReply
  *	torMessage the create reply torMessage received
  *	fromNode the node that replied to the create torMessage
  */
-func extractAndVerifySharedKeyInitiateReply(torMessage *util.TorMessage, fromNode *TorNode) []byte {
+func extractAndVerifySharedKeyCreateReply(torMessage *util.TorMessage, fromNode *TorNode) []byte {
 	publicDHReceived := torMessage.DHPublic
 	shaKeyShared := util.CreateDHSharedKey(publicDHReceived, fromNode.PartialPrivateKey)
 	hashSharedKey := sha256.Sum256(shaKeyShared)
@@ -182,31 +162,23 @@ func extractAndVerifySharedKeyInitiateReply(torMessage *util.TorMessage, fromNod
 	return shaKeyShared
 }
 
-func (gossiper *Gossiper) HandleTorInitiatorInitiateReply(torMessage *util.TorMessage, source string) {
+func (gossiper *Gossiper) HandleTorInitiatorCreateReply(torMessage *util.TorMessage, source string) {
 	// first find corresponding circuit
 	circuit := gossiper.findInitiatedCircuit(torMessage, source)
 	if circuit != nil {
 		// check hash of shared key
-		shaKeyShared := extractAndVerifySharedKeyInitiateReply(torMessage, circuit.GuardNode)
+		shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessage, circuit.GuardNode)
 		if shaKeyShared != nil {
 			circuit.NbInitiated = circuit.NbInitiated + 1
 
-			createTorMessage := gossiper.createInitiateRequest(circuit.ID, circuit.MiddleNode)
-			torPayLoad, err := json.Marshal(createTorMessage)
+			extendMessage := gossiper.createExtendRequest(circuit.ID, circuit.MiddleNode)
+
+			extendMessageBytes, err := json.Marshal(extendMessage)
 			util.CheckError(err)
-			ciphertext, nonce := util.EncryptGCM(torPayLoad, circuit.GuardNode.SharedKey)
-			// send extend message to middle node
-			extendTorMessage := &util.TorMessage{
-				CircuitID:    circuit.ID,
-				Flag:         util.Extend,
-				Type:         util.Request,
-				NextHop:      circuit.MiddleNode.Identity,
-				DHPublic:     nil,
-				DHSharedHash: nil,
-				Nonce:        nonce,
-				Payload:      ciphertext,
-			}
-			go gossiper.HandleTorToSecure(extendTorMessage, circuit.GuardNode.Identity)
+			relayMessage := gossiper.encryptDataInRelay(extendMessageBytes,  circuit.GuardNode.SharedKey, util.Request, circuit.ID)
+
+
+			go gossiper.HandleTorToSecure(relayMessage, circuit.GuardNode.Identity)
 		}
 	} else {
 		// TODO remove
@@ -214,22 +186,31 @@ func (gossiper *Gossiper) HandleTorInitiatorInitiateReply(torMessage *util.TorMe
 	}
 }
 
-func (gossiper *Gossiper) HandleTorIntermediateInitiateReply(torMessage *util.TorMessage, source string) {
+func (gossiper *Gossiper) HandleTorIntermediateCreateReply(torMessage *util.TorMessage, source string) {
 	// encrypt with shared key the reply
 	c := gossiper.lCircuits.circuits[torMessage.CircuitID]
-	torMessageBytes, err := json.Marshal(torMessage)
+	extendMessage := &util.TorMessage{
+		CircuitID:    c.ID,
+		Flag:         util.Extend,
+		Type:         util.Reply,
+		NextHop:      "",
+		DHPublic:     torMessage.DHPublic,
+		DHSharedHash: torMessage.DHSharedHash,
+		Nonce:        nil,
+		Payload:      nil,
+	}
+	extendMessageBytes, err := json.Marshal(extendMessage)
 	util.CheckError(err)
-	// add type
-	torExtendReply := gossiper.encryptDataIntoTor(torMessageBytes, c.SharedKey, util.Extend, util.Reply, c.ID)
+	relayMessage := gossiper.encryptDataInRelay(extendMessageBytes, c.SharedKey, util.Reply, c.ID)
 
 	// send to previous node
-	go gossiper.HandleTorToSecure(torExtendReply, c.PreviousHOP)
+	go gossiper.HandleTorToSecure(relayMessage, c.PreviousHOP)
 }
 
 /*
  *	Already locked when called
  */
-func (gossiper *Gossiper) HandleTorInitiateRequest(torMessage *util.TorMessage, source string) {
+func (gossiper *Gossiper) HandleTorCreateRequest(torMessage *util.TorMessage, source string) {
 	// we haven't already received the Create tor message - ignore it otherwise
 	if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; !ok {
 		// decrpyt public DH key

@@ -1,8 +1,6 @@
 package gossip
 
 import (
-	"bytes"
-	"encoding/json"
 	"github.com/dpetresc/Peerster/util"
 )
 
@@ -21,17 +19,23 @@ type Circuit struct {
 	// add timer
 }
 
-func (gossiper *Gossiper) HandleTorExtendRequest(torMessage *util.TorMessage, source string) {
-	if c, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
-		// decrpyt payload
-		extendPayloadBytes := util.DecryptGCM(torMessage.Payload, torMessage.Nonce, c.SharedKey)
-		var extendPayload *util.TorMessage
-		err := json.NewDecoder(bytes.NewReader(extendPayloadBytes)).Decode(extendPayload)
-		util.CheckError(err)
-
-
-		// Guard Node
-
-		//  Middle Node
+/*
+ *	createExtendRequest - generate DH partial key and creates the corresponding Extend TorMessage
+ *	circuitID: the cicuit id
+ *	toNode: the node we want to send the Create TorMessage to
+ */
+func (gossiper *Gossiper) createExtendRequest(circuitID uint32, toNode *TorNode) *util.TorMessage {
+	publicDHEncrypted := gossiper.generateAndEncryptPartialDHKey(toNode)
+	extendMessage := &util.TorMessage{
+		CircuitID:    circuitID,
+		Flag:         util.Extend,
+		Type:         util.Request,
+		NextHop:      toNode.Identity,
+		DHPublic:     publicDHEncrypted,
+		DHSharedHash: nil,
+		Nonce:        nil,
+		Payload:      nil,
 	}
+
+	return extendMessage
 }

@@ -13,20 +13,20 @@ type LockCircuits struct {
 	sync.RWMutex
 }
 
-func (gossiper *Gossiper) encryptDataIntoTor(data []byte, key []byte, flag util.TorFlag,
-	messageType util.TorMessageType, circuitID uint32) *util.TorMessage {
-	ciphertext, nonce := util.EncryptGCM(data, key)
-	torMessage := &util.TorMessage{
-		CircuitID:    circuitID,
-		Flag:         flag,
-		Type:         messageType,
-		NextHop:      "",
-		DHPublic:     nil,
-		DHSharedHash: nil,
-		Nonce:        nonce,
-		Payload:      ciphertext,
+/*
+ *	findInitiatedCircuit finds the corresponding circuit when receiving a reply from the guard node
+ *	torMessage the received message
+ *	source the source node of the received message
+ */
+func (gossiper *Gossiper) findInitiatedCircuit(torMessage *util.TorMessage, source string) *InitiatedCircuit {
+	var circuit *InitiatedCircuit = nil
+	for _, c := range gossiper.lCircuits.initiatedCircuit {
+		if c.ID == torMessage.CircuitID && c.GuardNode.Identity == source {
+			circuit = c
+			break
+		}
 	}
-	return torMessage
+	return circuit
 }
 
 /*
@@ -64,37 +64,33 @@ func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source 
 			switch torMessage.Type {
 				case util.Request: {
 					// can only receive Create Request if you are an intermediate node or exit node
-					gossiper.HandleTorInitiateRequest(torMessage, source)
+					gossiper.HandleTorCreateRequest(torMessage, source)
 				}
 				case util.Reply: {
 					if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
 						// INTERMEDIATE NODE
-						gossiper.HandleTorIntermediateInitiateReply(torMessage, source)
+						gossiper.HandleTorIntermediateCreateReply(torMessage, source)
 					} else {
 						// INITIATOR OF THE CIRCUIT AND THE GUARD NODE REPLIED
-						gossiper.HandleTorInitiatorInitiateReply(torMessage, source)
+						gossiper.HandleTorInitiatorCreateReply(torMessage, source)
 					}
 				}
 			}
 		}
-		case util.Extend: {
+		case util.Relay: {
 			switch torMessage.Type {
 				case util.Request: {
-					// can only receive Extend Request if you are an intermediate node or exit node
-					gossiper.HandleTorExtendRequest(torMessage, source)
+					// can only receive Relay Request if you are an intermediate node or exit node
+					gossiper.HandleTorRelayRequest(torMessage, source)
 				}
 				case util.Reply: {
-
-				}
-			}
-		}
-		case util.TorData: {
-			switch torMessage.Type {
-				case util.Request: {
-
-				}
-				case util.Reply: {
-
+					if c, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
+						// INTERMEDIATE NODE
+						gossiper.HandleTorIntermediateRelayReply(torMessage, source)
+					}else {
+						// INITIATOR OF THE CIRCUIT
+						gossiper.HandleTorInitiatorRelayReply(torMessage, source)
+					}
 				}
 			}
 		}

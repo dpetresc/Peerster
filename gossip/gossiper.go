@@ -23,6 +23,7 @@ type LockAllMsg struct {
 
 type LockLastPrivateMsg struct {
 	LastPrivateMsg map[string][]*util.PrivateMessage
+	LastPrivateMsgTor map[uint32][]*util.PrivateMessage
 	sync.RWMutex
 }
 
@@ -108,6 +109,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	lockLastPrivateMsg := LockLastPrivateMsg{
 		LastPrivateMsg: make(map[string][]*util.PrivateMessage),
+		LastPrivateMsgTor: make(map[uint32][]*util.PrivateMessage),
 	}
 
 	acks := make(map[string]map[Ack]chan util.StatusPacket)
@@ -237,6 +239,7 @@ func (gossiper *Gossiper) getConsensus() {
 	}
 	gossiper.lConsensus.nodesPublicKeys = CAResponse.NodesIDPublicKeys
 	// TODO update circuit with new consensus
+	// TODO checker ma signature
 	gossiper.lConsensus.Unlock()
 }
 

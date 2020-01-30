@@ -1,14 +1,15 @@
 package gossip
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/dpetresc/Peerster/util"
 )
 
 /*
- * createPivateMessageFromClient transforms a client message to a private message
+ * pivateMessageFromClient transforms a client message to a private message
  */
-func (gossiper *Gossiper) createPivateMessageFromClient(message *util.Message, dest string) *util.PrivateMessage {
+func (gossiper *Gossiper) pivateMessageFromClient(message *util.Message, dest string) *util.PrivateMessage {
 	var clientOrigin string
 	if !message.Anonyme {
 		clientOrigin = gossiper.Name
@@ -23,7 +24,61 @@ func (gossiper *Gossiper) createPivateMessageFromClient(message *util.Message, d
 		Destination: dest,
 		HopLimit:    util.HopLimit,
 	}
+	
 	return privateMessage
+}
+
+/*
+ * torDataFromPrivateMessage transforms a private message to a Tor data message
+ */
+func torDataFromPrivateMessage(privateMessage *util.PrivateMessage, circuit *InitiatedCircuit) *util.TorMessage {
+	dataMessage, err := json.Marshal(*privateMessage)
+	util.CheckError(err)
+
+	torMessage := &util.TorMessage{
+		CircuitID:    circuit.ID,
+		Flag:         util.TorData,
+		Type:         util.Request,
+		NextHop:      "",
+		DHPublic:     nil,
+		DHSharedHash: nil,
+		Nonce:        nil,
+		Payload:      dataMessage,
+	}
+
+	return torMessage
+}
+
+/*
+ * privateMessageFromTorData transforms a private message to a Tor data message
+ */
+func privateMessageFromTorData(torDataMessage *util.TorMessage) *util.PrivateMessage {
+	var privateMessage *util.PrivateMessage
+	err := json.NewDecoder(bytes.NewReader(torDataMessage.Payload)).Decode(privateMessage)
+	util.CheckError(err)
+
+	return privateMessage
+}
+
+/*
+ * createTorDataFromPrivate transforms a Tor data message to a private message
+ */
+func createTorDataFromPrivate(privateMessage *util.PrivateMessage, circuit *InitiatedCircuit) *util.TorMessage {
+	dataMessage, err := json.Marshal(*privateMessage)
+	util.CheckError(err)
+
+	torMessage := &util.TorMessage{
+		CircuitID:    circuit.ID,
+		Flag:         util.TorData,
+		Type:         util.Request,
+		NextHop:      "",
+		DHPublic:     nil,
+		DHSharedHash: nil,
+		Nonce:        nil,
+		Payload:      dataMessage,
+	}
+
+	return torMessage
 }
 
 /*
@@ -33,7 +88,7 @@ func (gossiper *Gossiper) createPivateMessageFromClient(message *util.Message, d
 func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
 	// TODO add timer and acks
 	dest := *message.Destination
-	privateMessage := gossiper.createPivateMessageFromClient(message, dest)
+	privateMessage := gossiper.pivateMessageFromClient(message, dest)
 
 	// TODO ATTENTION LOCKS lCircuits puis ensuite lConsensus => CHANGE ???
 	gossiper.lCircuits.Lock()
@@ -57,19 +112,21 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
  */
 func (gossiper *Gossiper) sendTorToSecure(privateMessage *util.PrivateMessage, circuit *InitiatedCircuit) {
 	// message for Exit Node
-	torPayLoadExit, err := json.Marshal(*privateMessage)
+	dataTorMessage := torDataFromPrivateMessage(privateMessage, circuit)
+	relayExitPayloadBytes, err := json.Marshal(dataTorMessage)
 	util.CheckError(err)
-	torMessageExit := gossiper.encryptDataIntoTor(torPayLoadExit, circuit.ExitNode.SharedKey, util.TorData, util.Request, circuit.ID)
+
+	relayExit := gossiper.encryptDataInRelay(relayExitPayloadBytes, circuit.ExitNode.SharedKey, util.Request, circuit.ID)
 
 	// message for Middle Node
-	torPayLoadMiddle, err := json.Marshal(torMessageExit)
+	relayMiddlePayloadBytes, err := json.Marshal(relayExit)
 	util.CheckError(err)
-	torMessageMiddle := gossiper.encryptDataIntoTor(torPayLoadMiddle, circuit.MiddleNode.SharedKey, util.TorData, util.Request, circuit.ID)
+	relayGuardPayloadBytes := gossiper.encryptDataInRelay(relayMiddlePayloadBytes, circuit.MiddleNode.SharedKey, util.Request, circuit.ID)
 
 	// message for Guard Node
-	torPayLoadGuard, err := json.Marshal(torMessageMiddle)
+	relayGuard, err := json.Marshal(relayGuardPayloadBytes)
 	util.CheckError(err)
-	torMessageGuard := gossiper.encryptDataIntoTor(torPayLoadGuard, circuit.GuardNode.SharedKey, util.TorData, util.Request, circuit.ID)
+	torMessageGuard := gossiper.encryptDataInRelay(relayGuard, circuit.GuardNode.SharedKey, util.Request, circuit.ID)
 
 	go gossiper.HandleTorToSecure(torMessageGuard, circuit.GuardNode.Identity)
 }
