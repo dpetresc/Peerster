@@ -141,7 +141,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 		} else if packet.HSPort != nil {
 			go gossiper.createHS(packet)
 		} else if packet.OnionAddr != nil {
-			go gossiper.joinHS(packet)
+			go gossiper.JoinHS(*packet.OnionAddr)
 		} else {
 			// index file
 			go gossiper.IndexFile(*packet.File)

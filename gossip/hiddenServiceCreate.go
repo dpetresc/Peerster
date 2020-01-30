@@ -36,6 +36,23 @@ type LockHS struct {
 	sync.RWMutex
 }
 
+type HSConnections struct {
+	sync.RWMutex
+	hsCos map[uint64]*HSConnetion
+}
+
+type HSConnetion struct{
+	SharedKey []byte
+	RDVPoint string
+}
+
+func NewHSConnections() *HSConnections{
+	return &HSConnections{
+		RWMutex:           sync.RWMutex{},
+		hsCos: make(map[uint64]*HSConnetion),
+	}
+}
+
 /*
  * sendHSDescriptorToConsensus send the HS Descriptor to the CA
  */

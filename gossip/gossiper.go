@@ -83,6 +83,9 @@ type Gossiper struct {
 
 	// HS
 	lHS *LockHS
+	connectionsToHS *ConnectionsToHS
+	bridges         *Bridges
+	hsCo            *HSConnections
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
@@ -206,6 +209,9 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		connections:          NewConnections(),
 		lCircuits:            lCircuits,
 		lHS:                  lHS,
+		connectionsToHS: NewConnectionsToHS(),
+		bridges: NewBridges(),
+		hsCo: NewHSConnections(),
 	}
 }
 
