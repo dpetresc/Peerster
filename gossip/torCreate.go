@@ -42,15 +42,21 @@ type InitiatedCircuit struct {
 
 /*
  *	Already locked when called
- *	destination to be excluded
+ *	node to exclude - when called by select path represents the destination to be excluded
  *	nodesToExclude nodes that either crashed or where already selected (guard node)
  */
-func (gossiper *Gossiper) selectRandomNodeFromConsensus(destination string, nodesToExclude ...string) string {
-	nbNodes := len(gossiper.lConsensus.nodesPublicKeys) - 2 - len(nodesToExclude)
+func (gossiper *Gossiper) selectRandomNodeFromConsensus(nodeToExclude string, nodesToExclude ...string) string {
+	nbNodes := len(gossiper.lConsensus.nodesPublicKeys) - 1 - len(nodesToExclude)
+	if nodeToExclude != "" {
+		nbNodes = nbNodes - 1
+	}
+	if nbNodes <= 0 {
+		return ""
+	}
 
 	randIndex := rand.Intn(nbNodes)
 	for identity := range gossiper.lConsensus.nodesPublicKeys {
-		if identity == gossiper.Name || identity == destination ||
+		if identity == gossiper.Name || identity == nodeToExclude ||
 			util.SliceContains(nodesToExclude, identity) {
 			continue
 		}

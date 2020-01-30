@@ -21,7 +21,7 @@ type Message struct {
 	CID     *uint32
 
 	// Hidden service
-	Topic     *string
+	HSPort    *string
 	OnionAddr *string
 }
 

@@ -24,7 +24,9 @@ func ConsensusHandler(w http.ResponseWriter, r *http.Request) {
 		mConsensusTracking.Unlock()
 		mConsensus.RLock()
 		jsonConsensus, err := json.Marshal(mConsensus)
-		fmt.Println(mConsensus)
+		if len(mConsensus.NodesIDPublicKeys) > 0 {
+			fmt.Println(mConsensus)
+		}
 		mConsensus.RUnlock()
 		util.CheckError(err)
 		w.WriteHeader(http.StatusOK)
@@ -73,6 +75,55 @@ func DescriptorHandler(w http.ResponseWriter, r *http.Request) {
 			mConsensusTracking.AllNodesIDPublicKeys[newNodeIdentityStr] = newNodeRSAPublicKey
 		}
 		mConsensusTracking.Unlock()
+	}
+}
+
+func HSConsensusHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "GET":
+		enableCors(&w)
+		mHSHashmap.RLock()
+		jsonHSConsensus, err := json.Marshal(mHSHashmap)
+		if len(mHSHashmap.HS) > 0 {
+			fmt.Println(mHSHashmap)
+		}
+		mHSHashmap.RUnlock()
+		util.CheckError(err)
+		w.WriteHeader(http.StatusOK)
+		w.Write(jsonHSConsensus)
+	}
+}
+
+func HSDescriptorHandler(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	switch r.Method {
+	case "POST":
+		var hsDescriptor gossiperHSDescriptor
+		err := json.NewDecoder(r.Body).Decode(&hsDescriptor)
+		util.CheckError(err)
+
+		fmt.Printf("%s: %s\n",hsDescriptor.OnionAddress, hsDescriptor.IPIdentity)
+
+		ipIdentityStr := string(hsDescriptor.IPIdentity)
+		pKIP := append(hsDescriptor.PublicKey[:], []byte(ipIdentityStr)...)
+		pkIpOnionAddr := append(pKIP[:], []byte(hsDescriptor.OnionAddress)...)
+
+
+		hsPublicKey, err := x509.ParsePKCS1PublicKey(hsDescriptor.PublicKey)
+		util.CheckError(err)
+
+		if !util.VerifyRSASignature(pkIpOnionAddr, hsDescriptor.Signature, hsPublicKey) {
+			http.Error(w, "Signature isn't correct !", http.StatusUnauthorized)
+			return
+		}
+
+		mHSHashmap.Lock()
+		if _, ok := mHSHashmap.HS[hsDescriptor.OnionAddress]; !ok {
+			mHSHashmap.HS[hsDescriptor.OnionAddress] = &hsDescriptor
+		}
+		mHSHashmap.signHSHashMap()
+		mHSHashmap.Unlock()
 	}
 }
 

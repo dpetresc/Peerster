@@ -20,7 +20,7 @@ var budget int64
 var secure bool
 var cID int64
 var anonyme bool
-var topic string
+var hsPort string
 var onionAddr string
 
 var clientAddrStr string
@@ -41,7 +41,7 @@ func init() {
 	flag.BoolVar(&anonyme, "anonyme", false, "option used to send remain anonyme while using Tor")
 
 	// hidden service
-	flag.StringVar(&topic, "topic", "", "topic of the hidden service")
+	flag.StringVar(&hsPort, "HSPort", "", "port on which we want to create the hidden service")
 	flag.StringVar(&onionAddr, "onionAddr", "", "onionAddr of the hidden service we want to join")
 
 	flag.Parse()
@@ -84,6 +84,11 @@ func isCorrectArgumentCombination() bool {
 	if dest == "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1 {
 		return true
 	}
+
+	// HS
+	if hsPort != "" || onionAddr != "" {
+		return true
+	}
 	return false
 }
 
@@ -122,8 +127,8 @@ func dealWithEmptyField(packetToSend *util.Message, requestBytes []byte) {
 	if file == "" {
 		packetToSend.File = nil
 	}
-	if topic == "" {
-		packetToSend.Topic = nil
+	if hsPort == "" {
+		packetToSend.HSPort = nil
 	}
 	if onionAddr == "" {
 		packetToSend.OnionAddr = nil
@@ -145,7 +150,7 @@ func main() {
 		Keywords:    &keywords,
 		Secure:      secure,
 		Anonyme:     anonyme,
-		Topic:       &topic,
+		HSPort:      &hsPort,
 		OnionAddr:   &onionAddr,
 	}
 	if budget != -1 {
