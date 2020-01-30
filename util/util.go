@@ -21,7 +21,8 @@ var ChunksFolderPath string
 
 func CheckError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
+		panic(err)
 	}
 }
 

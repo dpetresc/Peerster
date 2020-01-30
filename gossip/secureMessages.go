@@ -65,7 +65,7 @@ func (gossiper *Gossiper) SecureBytesConsumer(bytes []byte, destination string) 
 		newTunnelId.HandShakeMessages = append(newTunnelId.HandShakeMessages, secureMessage)
 
 		go gossiper.setExpirationTimeout(destination, newTunnelId)
-		fmt.Printf("CONNECTION with %s opened\n", destination)
+		//fmt.Printf("CONNECTION with %s opened\n", destination)
 		gossiper.HandleSecureMessage(secureMessage)
 		go gossiper.startTimer(secureMessage)
 
@@ -131,23 +131,23 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 			if tunnelId.NextPacket == secureMessage.MessageType && Equals(secureMessage.Nonce, tunnelId.Nonce) {
 				switch secureMessage.MessageType {
 				case util.ServerHello:
-					fmt.Println("HANDSHAKE ServerHello")
+					//fmt.Println("HANDSHAKE ServerHello")
 					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleServerHello(secureMessage)
 				case util.ChangeCipherSec:
-					fmt.Println("HANDSHAKE ChangeCipherSec")
+					//fmt.Println("HANDSHAKE ChangeCipherSec")
 					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleChangeCipherSec(secureMessage)
 				case util.ServerFinished:
-					fmt.Println("HANDSHAKE ServerFinished")
+					//fmt.Println("HANDSHAKE ServerFinished")
 					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleServerFinished(secureMessage)
 				case util.ClientFinished:
-					fmt.Println("HANDSHAKE ClientFinished")
+					//fmt.Println("HANDSHAKE ClientFinished")
 					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleClientFinished(secureMessage)
 				case util.ACKClientFinished:
-					fmt.Println("HANDSHAKE ACKClientFinished")
+					//fmt.Println("HANDSHAKE ACKClientFinished")
 					gossiper.handleACKClientFinished(secureMessage)
 				case util.Data:
 					gossiper.handleData(secureMessage)
@@ -158,7 +158,7 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 			}
 
 		} else if secureMessage.MessageType == util.ClientHello {
-			fmt.Println("HANDSHAKE ClientHello")
+			//fmt.Println("HANDSHAKE ClientHello")
 			gossiper.handleClientHello(secureMessage)
 		}
 	}
@@ -206,7 +206,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		gossiper.connections.Conns[message.Origin] = tunnelId
 		go gossiper.setExpirationTimeout(message.Origin, tunnelId)
 
-		fmt.Printf("CONNECTION with %s opened\n", message.Origin)
+		//fmt.Printf("CONNECTION with %s opened\n", message.Origin)
 
 		privateDH, publicDH := util.CreateDHPartialKey()
 		tunnelId.PrivateDH = privateDH
@@ -357,6 +357,7 @@ func (gossiper *Gossiper) handleClientFinished(message *util.SecureMessage) {
 		gossiper.HandleSecureMessage(ack)
 		tunnelId.ACKsHandshake <- true
 		close(tunnelId.ACKsHandshake)
+		fmt.Printf("CONNECTION with %s opened\n", message.Origin)
 	}
 }
 
@@ -368,6 +369,7 @@ func (gossiper *Gossiper) handleACKClientFinished(message *util.SecureMessage) {
 	tunnelId := gossiper.connections.Conns[message.Origin]
 	tunnelId.ACKsHandshake <- true
 	close(tunnelId.ACKsHandshake)
+	fmt.Printf("CONNECTION with %s opened\n", message.Origin)
 	tunnelId.NextPacket = util.Data
 	for _, bytes := range tunnelId.Pending {
 		gossiper.sendSecureMessage(bytes, tunnelId, message.Origin)
@@ -474,7 +476,7 @@ func (gossiper *Gossiper) checkFinishedMessages(ciphertext, nonce []byte, tunnel
 
 	for i := range toEncrypt {
 		if toEncrypt[i] != plaintext[i] {
-			fmt.Println(i, toEncrypt[i], plaintext[i])
+			//fmt.Println(i, toEncrypt[i], plaintext[i])
 			return false
 		}
 	}
@@ -586,14 +588,14 @@ func (gossiper *Gossiper) startTimer(message *util.SecureMessage) {
 			tunnelId.ConsecutiveTO = 0
 
 			if message.MessageType == util.Data {
-				fmt.Printf("ACK %d received\n", message.CTR)
+				//fmt.Printf("ACK %d received\n", message.CTR)
 				delete(tunnelId.ACKs, message.CTR)
 				close(ackChan)
 				gossiper.connections.Unlock()
 				return
 
 			} else {
-				fmt.Printf("ACK for %s\n", message.MessageType.String())
+				//fmt.Printf("ACK for %s\n", message.MessageType.String())
 			}
 			gossiper.connections.Unlock()
 			return

@@ -60,8 +60,8 @@ type RumorMessage struct {
 }
 
 func (peerMessage *RumorMessage) PrintRumorMessage(sourceAddr string) {
-	fmt.Printf("RUMOR origin %s from %s ID %d contents %s\n", peerMessage.Origin,
-		sourceAddr, peerMessage.ID, peerMessage.Text)
+	/*fmt.Printf("RUMOR origin %s from %s ID %d contents %s\n", peerMessage.Origin,
+		sourceAddr, peerMessage.ID, peerMessage.Text)*/
 }
 
 /******************** STATUS PACKET ********************/
@@ -70,7 +70,7 @@ type StatusPacket struct {
 }
 
 func (peerMessage *StatusPacket) PrintStatusMessage(sourceAddr string) {
-	if len(peerMessage.Want) > 0 {
+	/*if len(peerMessage.Want) > 0 {
 		var s = ""
 		s += fmt.Sprintf("STATUS from %s ", sourceAddr)
 		for _, peer := range peerMessage.Want[:len(peerMessage.Want)-1] {
@@ -79,7 +79,7 @@ func (peerMessage *StatusPacket) PrintStatusMessage(sourceAddr string) {
 		}
 		s += peerMessage.Want[len(peerMessage.Want)-1].GetPeerStatusAsStr()
 		fmt.Println(s)
-	}
+	}*/
 }
 
 /******************** PRIVATE MESSAGE ********************/
@@ -265,4 +265,9 @@ type TorMessage struct {
 	DHSharedHash []byte
 	Nonce        []byte
 	Payload      []byte
+}
+
+func (torMessage *TorMessage) String() string {
+	return fmt.Sprintf("ID: %d \n DHPublic %x \n" +
+		"DHSharedHash: %x", torMessage.CircuitID, torMessage.DHPublic, torMessage.DHSharedHash)
 }

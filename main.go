@@ -34,10 +34,10 @@ func init() {
 	flag.BoolVar(&gui, "gui", false, "run gossip with gui")
 
 	// crypto
-	flag.BoolVar(&tor, "tor", false, "tor flag")
-
 	// when tor flag is not present
 	flag.BoolVar(&secure, "secure", false, "secure private message flag")
+	// tor
+	flag.BoolVar(&tor, "tor", false, "tor flag")
 
 	flag.Parse()
 }

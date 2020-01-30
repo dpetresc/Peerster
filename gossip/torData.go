@@ -115,11 +115,11 @@ func torDataFromPrivateMessage(privateMessage *util.PrivateMessage, circuit *Ini
  * privateMessageFromTorData transforms a private message to a Tor data message
  */
 func privateMessageFromTorData(torDataMessage *util.TorMessage) *util.PrivateMessage {
-	var privateMessage *util.PrivateMessage
-	err := json.NewDecoder(bytes.NewReader(torDataMessage.Payload)).Decode(privateMessage)
+	var privateMessage util.PrivateMessage
+	err := json.NewDecoder(bytes.NewReader(torDataMessage.Payload)).Decode(&privateMessage)
 	util.CheckError(err)
 
-	return privateMessage
+	return &privateMessage
 }
 
 /*

@@ -95,6 +95,7 @@ func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*uti
 	gossiper.lConsensus.RLock()
 	nodes := gossiper.selectPath(dest, crashedNodes...)
 	if nodes == nil {
+		gossiper.lConsensus.RUnlock()
 		return
 	}
 	newCircuit := &InitiatedCircuit{

@@ -120,7 +120,7 @@ func GetPrivateKey(path, name string) *rsa.PrivateKey {
 		privateKey = ReadRSAPrivateKey(myPrivateKeyPath)
 	} else if os.IsNotExist(err) {
 		os.MkdirAll(myPrivateKeyPath, 0777)
-		privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		privateKey, err = rsa.GenerateKey(rand.Reader, 4096)
 		CheckError(err)
 
 		pemPrivateFile, err := os.Create(myPrivateKeyPath + "/private.pem")

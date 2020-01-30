@@ -26,10 +26,10 @@ func (gossiper *Gossiper) encryptDataInRelay(data []byte, key []byte,
 func (gossiper *Gossiper) decrpytTorMessageFromRelay(torMessageRelay *util.TorMessage, sharedKey []byte) *util.TorMessage {
 	// decrpyt payload
 	torMessageBytes := util.DecryptGCM(torMessageRelay.Payload, torMessageRelay.Nonce, sharedKey)
-	var torMessage *util.TorMessage
-	err := json.NewDecoder(bytes.NewReader(torMessageBytes)).Decode(torMessage)
+	var torMessage util.TorMessage
+	err := json.NewDecoder(bytes.NewReader(torMessageBytes)).Decode(&torMessage)
 	util.CheckError(err)
-	return torMessage
+	return &torMessage
 }
 
 func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, source string) {
@@ -118,7 +118,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				fmt.Println("PROBLEM !")
 				return
 			}
-			shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessageFirst, circuit.MiddleNode)
+			shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessageSecond, circuit.ExitNode)
 			if shaKeyShared != nil {
 				circuit.NbCreated = circuit.NbCreated + 1
 
