@@ -10,16 +10,38 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"github.com/monnand/dhkx"
 	"io"
 	"os"
 )
 
-//TODO MODIFIED
-var ConsensusTimerMin uint32 = 10
+// TODO change timer
+var ConsensusTimerMin uint32 = 1
 var CAAddress = "127.0.0.1:4343"
 
 // folder where the keys needed by this node are stored
 var KeysFolderPath = "./_MyKeys/"
+
+// DH group used in all the Peerster crypto
+var DHGroupID = 0
+
+/*
+ * Check if two []byte are equal
+ */
+func Equals(tab1, tab2 []byte) bool{
+	if len(tab1) != len(tab2){
+		return false
+	}
+
+	for i := range tab1 {
+		if tab1[i] != tab2[i]{
+			return false
+		}
+	}
+	return true
+}
+
+/****************************** RSA ************************************/
 
 func readKeyFromFile(path string) *pem.Block {
 	privateKeyFile, err := os.Open(path)
@@ -119,9 +141,31 @@ func GetPrivateKey(path, name string) *rsa.PrivateKey {
 }
 
 /*
+ * Encrypt a message with a private key
+ */
+func EncryptRSA(message []byte, publicKey *rsa.PublicKey) []byte {
+	encryption, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey, message, nil)
+
+	CheckError(err)
+
+	return encryption
+}
+
+/*
+ * Decrypt a message with a private key
+ */
+func DecryptRSA(message []byte, privateKey *rsa.PrivateKey) []byte {
+	message, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, message, nil)
+
+	CheckError(err)
+
+	return message
+}
+
+/*
  * Sign a message with a private key
  */
-func SignByteMessage(message []byte, privateKey *rsa.PrivateKey) []byte {
+func SignRSA(message []byte, privateKey *rsa.PrivateKey) []byte {
 	hashed := sha256.Sum256(message)
 	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashed[:])
 	CheckError(err)
@@ -133,10 +177,41 @@ func SignByteMessage(message []byte, privateKey *rsa.PrivateKey) []byte {
  *	Verifies that the signature of the message made with the key corresponding to the given public key
  *	is correct.
  */
-func VerifySignature(message, signature []byte, publicKey *rsa.PublicKey) bool {
+func VerifyRSASignature(message, signature []byte, publicKey *rsa.PublicKey) bool {
 	hashed := sha256.Sum256(message)
 	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hashed[:], signature)
 	return err == nil
+}
+
+/****************************** DH + GCM ************************************/
+/*
+ * CreateDHPartialKey creates a partial key for DH protocol
+ */
+func CreateDHPartialKey() (*dhkx.DHKey, []byte) {
+	g, err := dhkx.GetGroup(DHGroupID)
+	CheckError(err)
+
+	privateDH, err := g.GeneratePrivateKey(nil)
+	CheckError(err)
+
+	publicDH := privateDH.Bytes()
+	return privateDH, publicDH
+}
+
+/*
+ *	CreateDHSharedKey creates shared key from
+ *	dhPublic the public partial key
+ *	privateDH the private partial key
+ */
+func CreateDHSharedKey(dhPublic []byte, privateDH *dhkx.DHKey) []byte {
+	g, err := dhkx.GetGroup(DHGroupID)
+	CheckError(err)
+
+	sharedKey, err := g.ComputeKey(dhkx.NewPublicKey(dhPublic), privateDH)
+	CheckError(err)
+	shaKeyShared := sha256.Sum256(sharedKey.Bytes())
+	shaKeySharedBytes := shaKeyShared[:]
+	return shaKeySharedBytes
 }
 
 /*

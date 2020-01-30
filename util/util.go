@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -44,6 +45,26 @@ func GetNonEmptyElementsFromString(s string, separator string) []string {
 		}
 	}
 	return nonEmptyElementArray
+}
+
+
+/*
+ *	check if a slice contains an item
+ */
+func SliceContains(slice interface{}, item interface{}) bool {
+	s := reflect.ValueOf(slice)
+
+	if s.Kind() != reflect.Slice {
+		panic("Invalid data-type")
+	}
+
+	for i := 0; i < s.Len(); i++ {
+		if s.Index(i).Interface() == item {
+			return true
+		}
+	}
+
+	return false
 }
 
 /********** FOR FILES **********/

@@ -35,6 +35,8 @@ func init() {
 
 	// crypto
 	flag.BoolVar(&tor, "tor", false, "tor flag")
+
+	// when tor flag is not present
 	flag.BoolVar(&secure, "secure", false, "secure private message flag")
 
 	flag.Parse()

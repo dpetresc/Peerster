@@ -15,6 +15,8 @@ type Message struct {
 	Keywords    *string
 	Budget      *uint64
 	Secure      bool
+	Anonyme     bool
+	CID         *uint32
 }
 
 func (clientMessage *Message) PrintClientMessage() {
@@ -230,14 +232,37 @@ func (secMsg *SecureMessage) String() string {
 }
 
 /////////////////////////////////////TOR///////////////////////////////////////////////
+type TorFlag uint32
+
+const (
+	Create TorFlag = iota
+	Extend
+	Relay
+	TorData
+)
+
+type TorMessageType uint32
+
+const (
+	Request TorMessageType = iota
+	Reply
+)
+
 /*
- *	PreviousHOP previous node in Tor
- *	NextHOP 	next node in Tor, nil if you are the destination
- *	CircuitID	id of the Tor circuit
- *	Data		encrypted Tor message, or encrypted payload if destination
+ *	CircuitID: All flags. The id of the Tor circuit
+ *	NextHOP: Extend flag. The next node in Tor, nil if you are the final destination
+ *	DHPublic: Create or Extend flag. The DH public part (encrypted in request and in clear in response)
+ *	DHSharedHash: Create or Extend flag. The hash of the shared key (in response)
+ *	Nonce: Relay flag. Used for encryption when the payload is encrypted
+ *	Payload: Relay or TorData. The encrypted Tor message, or the data if destination
  */
 type TorMessage struct {
-	CircuitID uint32
-	Data      []byte
-	NextHop   string
+	CircuitID    uint32
+	Flag         TorFlag
+	Type         TorMessageType
+	NextHop      string
+	DHPublic     []byte
+	DHSharedHash []byte
+	Nonce        []byte
+	Payload      []byte
 }

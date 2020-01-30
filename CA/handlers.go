@@ -13,6 +13,14 @@ func ConsensusHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		enableCors(&w)
+		nodes, ok := r.URL.Query()["node"]
+		if !ok || len(nodes[0]) < 1 {
+			http.Error(w, "Please specify your node name to get the consensus !", http.StatusUnauthorized)
+			return
+		}
+		mConsensusTracking.Lock()
+		mConsensusTracking.NodesRunning[string(nodes[0])] = true
+		mConsensusTracking.Unlock()
 		jsonConsensus, err := json.Marshal(mConsensus)
 		util.CheckError(err)
 		w.WriteHeader(http.StatusOK)
@@ -20,7 +28,7 @@ func ConsensusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func SubscriptionHandler(w http.ResponseWriter, r *http.Request) {
+func DescriptorHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "POST":
@@ -33,31 +41,33 @@ func SubscriptionHandler(w http.ResponseWriter, r *http.Request) {
 		newNodeRSAPublicKey, err := x509.ParsePKCS1PublicKey(descriptor.PublicKey)
 		util.CheckError(err)
 
-		if !util.VerifySignature(newNode, descriptor.Signature, newNodeRSAPublicKey) {
+		if !util.VerifyRSASignature(newNode, descriptor.Signature, newNodeRSAPublicKey) {
 			http.Error(w, "Signature isn't correct !", http.StatusUnauthorized)
 			return
 		}
-		mConsensus.Lock()
-		if key, ok := mConsensus.NodesIDPublicKeys[newNodeIdentityStr]; ok {
+
+		mConsensusTracking.Lock()
+		if key, ok := mConsensusTracking.AllNodesIDPublicKeys[newNodeIdentityStr]; ok {
 			if !bytes.Equal(x509.MarshalPKCS1PublicKey(key), descriptor.PublicKey) {
-				http.Error(w, "Identity already used !", http.StatusUnauthorized)
-				mConsensus.Unlock()
+				http.Error(w, "Identity has already been used !", http.StatusUnauthorized)
+				mConsensusTracking.Unlock()
 				return
+			} else {
+				mConsensusTracking.NodesRunning[newNodeIdentityStr] = true
 			}
 		} else {
-			for _, key := range mConsensus.NodesIDPublicKeys {
+			for _, key := range mConsensusTracking.AllNodesIDPublicKeys {
 				if bytes.Equal(x509.MarshalPKCS1PublicKey(key), descriptor.PublicKey) {
-					http.Error(w, "Public Key already exists in consensus !", http.StatusUnauthorized)
-					mConsensus.Unlock()
+					http.Error(w, "Public SharedKey has already exist in consensus !", http.StatusUnauthorized)
+					mConsensusTracking.Unlock()
 					return
 				}
 			}
+			mConsensusTracking.NodesRunning[newNodeIdentityStr] = true
+			// new node that have not been previously registered
+			mConsensusTracking.AllNodesIDPublicKeys[newNodeIdentityStr] = newNodeRSAPublicKey
 		}
-		mConsensus.NodesIDPublicKeys[newNodeIdentityStr] = newNodeRSAPublicKey
-		b, err := json.Marshal(mConsensus.NodesIDPublicKeys)
-		util.CheckError(err)
-		mConsensus.Signature = util.SignByteMessage(b, privateKey)
-		mConsensus.Unlock()
+		mConsensusTracking.Unlock()
 	}
 }
 
