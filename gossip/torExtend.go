@@ -9,6 +9,7 @@ import (
  *	PreviousHOP previous node in Tor
  *	NextHOP 	next node in Tor, nil if you are the destination
  *	SharedKey 	shared SharedKey exchanged with the source
+ *	TimeoutChan timeout for the circuit
  */
 type Circuit struct {
 	ID          uint32
@@ -16,7 +17,7 @@ type Circuit struct {
 	NextHOP     string
 	SharedKey   []byte
 
-	// add timer
+	TimeoutChan chan bool
 }
 
 /*

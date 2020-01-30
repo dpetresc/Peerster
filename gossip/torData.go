@@ -3,8 +3,70 @@ package gossip
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 )
+
+/*
+ * 	HandleClientTorMessage handles the messages coming from the client.
+ *	message *util.Message is the message sent by the client.
+ */
+func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
+	dest := *message.Destination
+	privateMessage := gossiper.pivateMessageFromClient(message, dest)
+
+	// TODO ATTENTION LOCKS lCircuits puis ensuite lConsensus => CHANGE ???
+	gossiper.lCircuits.Lock()
+	if message.CID == nil {
+		if circuit, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
+			if circuit.NbCreated == 3 {
+				// Tor circuit exists and is already initiated and ready to be used
+				gossiper.sendTorToSecure(privateMessage, circuit)
+			} else {
+				circuit.Pending = append(circuit.Pending, privateMessage)
+			}
+		} else {
+			privateMessages := make([]*util.PrivateMessage, 0, 1)
+			privateMessages = append(privateMessages, privateMessage)
+			gossiper.initiateNewCircuit(dest, privateMessages)
+		}
+	} else {
+		if circuit, ok := gossiper.lCircuits.circuits[*message.CID]; ok {
+			gossiper.sendReplyPrivateMessage(privateMessage, circuit)
+			gossiper.handlePrivatePacketTor(privateMessage, gossiper.Name, circuit.ID)
+		} else {
+			fmt.Printf("Can not reply to message on circuit %d because it expired", *message.CID)
+		}
+	}
+	gossiper.lCircuits.Unlock()
+}
+
+/*
+ * sendReplyPrivateMessage send a private message reply on a previously opened circuit (this node is the exit node)
+ * privateMessage: the reply
+ * circuit: the circuit on wich the private message should be sent
+ */
+func (gossiper *Gossiper) sendReplyPrivateMessage(privateMessage *util.PrivateMessage, circuit *Circuit) {
+	dataMessage, err := json.Marshal(*privateMessage)
+	util.CheckError(err)
+
+	dataTorMessage := &util.TorMessage{
+		CircuitID:    circuit.ID,
+		Flag:         util.TorData,
+		Type:         util.Reply,
+		NextHop:      "",
+		DHPublic:     nil,
+		DHSharedHash: nil,
+		Nonce:        nil,
+		Payload:      dataMessage,
+	}
+
+	relayExitPayloadBytes, err := json.Marshal(dataTorMessage)
+	util.CheckError(err)
+
+	relayExit := gossiper.encryptDataInRelay(relayExitPayloadBytes, circuit.SharedKey, util.Reply, circuit.ID)
+	go gossiper.HandleTorToSecure(relayExit, circuit.PreviousHOP)
+}
 
 /*
  * pivateMessageFromClient transforms a client message to a private message
@@ -61,53 +123,6 @@ func privateMessageFromTorData(torDataMessage *util.TorMessage) *util.PrivateMes
 }
 
 /*
- * createTorDataFromPrivate transforms a Tor data message to a private message
- */
-func createTorDataFromPrivate(privateMessage *util.PrivateMessage, circuit *InitiatedCircuit) *util.TorMessage {
-	dataMessage, err := json.Marshal(*privateMessage)
-	util.CheckError(err)
-
-	torMessage := &util.TorMessage{
-		CircuitID:    circuit.ID,
-		Flag:         util.TorData,
-		Type:         util.Request,
-		NextHop:      "",
-		DHPublic:     nil,
-		DHSharedHash: nil,
-		Nonce:        nil,
-		Payload:      dataMessage,
-	}
-
-	return torMessage
-}
-
-/*
- * 	HandleClientTorMessage handles the messages coming from the client.
- *	message *util.Message is the message sent by the client.
- */
-func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
-	// TODO add timer and acks
-	dest := *message.Destination
-	privateMessage := gossiper.pivateMessageFromClient(message, dest)
-
-	// TODO ATTENTION LOCKS lCircuits puis ensuite lConsensus => CHANGE ???
-	gossiper.lCircuits.Lock()
-	if circuit, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
-		if circuit.NbInitiated == 3 {
-			// Tor circuit exists and is already initiated and ready to be used
-			gossiper.sendTorToSecure(privateMessage, circuit)
-		} else {
-			circuit.Pending = append(circuit.Pending, privateMessage)
-		}
-	} else {
-		privateMessages := make([]*util.PrivateMessage, 0, 1)
-		privateMessages = append(privateMessages, privateMessage)
-		gossiper.initiateNewCircuit(dest, privateMessages)
-	}
-	gossiper.lCircuits.Unlock()
-}
-
-/*
  *	Already locked when called
  */
 func (gossiper *Gossiper) sendTorToSecure(privateMessage *util.PrivateMessage, circuit *InitiatedCircuit) {
@@ -130,5 +145,3 @@ func (gossiper *Gossiper) sendTorToSecure(privateMessage *util.PrivateMessage, c
 
 	go gossiper.HandleTorToSecure(torMessageGuard, circuit.GuardNode.Identity)
 }
-
-// TODO DO

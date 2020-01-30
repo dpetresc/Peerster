@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+const torTimeoutCircuits = 6
+
 type LockCircuits struct {
 	circuits         map[uint32]*Circuit
 	initiatedCircuit map[string]*InitiatedCircuit
@@ -37,6 +39,7 @@ func (gossiper *Gossiper) findInitiatedCircuit(torMessage *util.TorMessage, sour
 func (gossiper *Gossiper) HandleTorToSecure(torMessage *util.TorMessage, destination string) {
 	torToSecure, err := json.Marshal(torMessage)
 	util.CheckError(err)
+	// TODO ADD PADDING
 	gossiper.SecureBytesConsumer(torToSecure, destination)
 }
 
@@ -45,6 +48,7 @@ func (gossiper *Gossiper) HandleTorToSecure(torMessage *util.TorMessage, destina
  * secureToTor extract the data received by the secure layer and calls the corresponding handler
  */
 func (gossiper *Gossiper) secureToTor(bytesData []byte, source string) {
+	// TODO REMOVE PADDING
 	var torMessage util.TorMessage
 	err := json.NewDecoder(bytes.NewReader(bytesData)).Decode(&torMessage)
 	util.CheckError(err)
@@ -57,7 +61,6 @@ func (gossiper *Gossiper) secureToTor(bytesData []byte, source string) {
  *	source	name of the secure source
  */
 func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source string) {
-	// TODO
 	gossiper.lCircuits.Lock()
 	switch torMessage.Flag {
 		case util.Create: {
@@ -79,12 +82,12 @@ func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source 
 		}
 		case util.Relay: {
 			switch torMessage.Type {
-				case util.Request: {
-					// can only receive Relay Request if you are an intermediate node or exit node
-					gossiper.HandleTorRelayRequest(torMessage, source)
-				}
+			case util.Request: {
+				// can only receive Relay Request if you are an intermediate node or exit node
+				gossiper.HandleTorRelayRequest(torMessage, source)
+			}
 				case util.Reply: {
-					if c, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
+					if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
 						// INTERMEDIATE NODE
 						gossiper.HandleTorIntermediateRelayReply(torMessage, source)
 					}else {

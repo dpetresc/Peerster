@@ -7,6 +7,7 @@ import (
 	"github.com/dpetresc/Peerster/util"
 	"github.com/monnand/dhkx"
 	"math/rand"
+	"time"
 )
 
 /*
@@ -21,10 +22,29 @@ type TorNode struct {
 }
 
 /*
-*	Already locked when called
+ *	ID	id of the TOR circuit
+ *	GuardNode first node in the circuit
+ *	MiddleNode 	intermediate node
+ *	ExitNode	third and last node
+ *	NbCreated 1,2,3 - if 3 the circuit has already been initiated
+ *	TimeoutChan timeout for the circuit
+ */
+type InitiatedCircuit struct {
+	ID         uint32
+	GuardNode  *TorNode
+	MiddleNode *TorNode
+	ExitNode   *TorNode
+	NbCreated  uint8
+	Pending    []*util.PrivateMessage
+
+	TimeoutChan chan bool
+}
+
+/*
+ *	Already locked when called
  *	destination to be excluded
  *	nodesToExclude nodes that either crashed or where already selected (guard node)
-*/
+ */
 func (gossiper *Gossiper) selectRandomNodeFromConsensus(destination string, nodesToExclude ...string) string {
 	nbNodes := len(gossiper.lConsensus.nodesPublicKeys) - 2 - len(nodesToExclude)
 
@@ -41,24 +61,6 @@ func (gossiper *Gossiper) selectRandomNodeFromConsensus(destination string, node
 	}
 
 	return ""
-}
-
-/*
- *	ID	id of the TOR circuit
- *	GuardNode first node in the circuit
- *	MiddleNode 	intermediate node
- *	ExitNode	third and last node
- *	NbInitiated 1,2,3 - if 3 the circuit has already been initiated
- */
-type InitiatedCircuit struct {
-	ID          uint32
-	GuardNode   *TorNode
-	MiddleNode  *TorNode
-	ExitNode    *TorNode
-	NbInitiated uint8
-	Pending     []*util.PrivateMessage
-
-	// add timer
 }
 
 //  All methods structures' are already locked when called
@@ -89,9 +91,9 @@ func (gossiper *Gossiper) selectPath(destination string, crashedNodes ...string)
  *	destination of the circuit
  *	privateMessages len = 1 if called with a client message, could be more if due to change in consensus for ex.
  */
-func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*util.PrivateMessage) {
+func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*util.PrivateMessage, crashedNodes ...string) {
 	gossiper.lConsensus.RLock()
-	nodes := gossiper.selectPath(dest)
+	nodes := gossiper.selectPath(dest, crashedNodes...)
 	if nodes == nil {
 		return
 	}
@@ -112,11 +114,11 @@ func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*uti
 			PartialPrivateKey: nil,
 			SharedKey:         nil,
 		},
-		NbInitiated: 0,
-		Pending:     make([]*util.PrivateMessage, 0, len(privateMessages)),
+		NbCreated:   0,
+		Pending:     privateMessages,
+		TimeoutChan: make(chan bool),
 	}
-	newCircuit.Pending = privateMessages
-	
+
 	publicDHEncrypted := gossiper.generateAndEncryptPartialDHKey(newCircuit.GuardNode)
 	createTorMessage := &util.TorMessage{
 		CircuitID:    newCircuit.ID,
@@ -132,6 +134,7 @@ func (gossiper *Gossiper) initiateNewCircuit(dest string, privateMessages []*uti
 	// add new Circuit to state
 	gossiper.lCircuits.initiatedCircuit[dest] = newCircuit
 
+	go gossiper.setTorExpirationTimeoutInitiator(dest, newCircuit)
 	go gossiper.HandleTorToSecure(createTorMessage, newCircuit.GuardNode.Identity)
 	gossiper.lConsensus.RUnlock()
 }
@@ -166,17 +169,18 @@ func (gossiper *Gossiper) HandleTorInitiatorCreateReply(torMessage *util.TorMess
 	// first find corresponding circuit
 	circuit := gossiper.findInitiatedCircuit(torMessage, source)
 	if circuit != nil {
+		circuit.TimeoutChan <- true
+
 		// check hash of shared key
 		shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessage, circuit.GuardNode)
 		if shaKeyShared != nil {
-			circuit.NbInitiated = circuit.NbInitiated + 1
+			circuit.NbCreated = circuit.NbCreated + 1
 
 			extendMessage := gossiper.createExtendRequest(circuit.ID, circuit.MiddleNode)
 
 			extendMessageBytes, err := json.Marshal(extendMessage)
 			util.CheckError(err)
-			relayMessage := gossiper.encryptDataInRelay(extendMessageBytes,  circuit.GuardNode.SharedKey, util.Request, circuit.ID)
-
+			relayMessage := gossiper.encryptDataInRelay(extendMessageBytes, circuit.GuardNode.SharedKey, util.Request, circuit.ID)
 
 			go gossiper.HandleTorToSecure(relayMessage, circuit.GuardNode.Identity)
 		}
@@ -189,6 +193,7 @@ func (gossiper *Gossiper) HandleTorInitiatorCreateReply(torMessage *util.TorMess
 func (gossiper *Gossiper) HandleTorIntermediateCreateReply(torMessage *util.TorMessage, source string) {
 	// encrypt with shared key the reply
 	c := gossiper.lCircuits.circuits[torMessage.CircuitID]
+	c.TimeoutChan <- true
 	extendMessage := &util.TorMessage{
 		CircuitID:    c.ID,
 		Flag:         util.Extend,
@@ -228,8 +233,11 @@ func (gossiper *Gossiper) HandleTorCreateRequest(torMessage *util.TorMessage, so
 			PreviousHOP: source,
 			NextHOP:     "",
 			SharedKey:   shaKeyShared,
+			TimeoutChan: make(chan bool),
 		}
 		gossiper.lCircuits.circuits[torMessage.CircuitID] = newCircuit
+
+		go gossiper.setTorExpirationTimeoutIntermediate(newCircuit)
 
 		// CREATE REPLY
 		hashSharedKey := sha256.Sum256(shaKeyShared)
@@ -245,5 +253,65 @@ func (gossiper *Gossiper) HandleTorCreateRequest(torMessage *util.TorMessage, so
 		}
 
 		go gossiper.HandleTorToSecure(torMessageReply, source)
+	}
+}
+
+/*
+ *	setTorExpirationTimeoutInitiator starts a new timer for the circuit that was previously opened. (for initiated circuit)
+ *	When the timer expires another circuit is created for the destination if we have pending messages.
+ */
+func (gossiper *Gossiper) setTorExpirationTimeoutInitiator(dest string, circuit *InitiatedCircuit) {
+	ticker := time.NewTicker(time.Duration(torTimeoutCircuits * time.Minute))
+	for {
+		select {
+		case <-ticker.C:
+			// time out, the circuit expires.
+			fmt.Printf("EXPIRED circuit with %s\n", dest)
+			ticker.Stop()
+			gossiper.lCircuits.Lock()
+			if c, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
+				gossiper.changeCircuitPath(c, dest)
+			}
+			gossiper.lCircuits.Unlock()
+			return
+		case <-circuit.TimeoutChan:
+			// circuit tunnel was used, reset the timer.
+			ticker = time.NewTicker(time.Duration(torTimeoutCircuits * time.Minute))
+		}
+	}
+}
+
+/*
+ *	Create a new circuit or remove it if no pending messages for initiated circuit.
+ */
+func (gossiper *Gossiper) changeCircuitPath(c *InitiatedCircuit, dest string) {
+	privateMessages := c.Pending
+	delete(gossiper.lCircuits.initiatedCircuit, dest)
+	if len(c.Pending) > 0 {
+		// try again with a new circuit
+		gossiper.initiateNewCircuit(dest, privateMessages)
+	}
+}
+
+/*
+ *	setTorExpirationTimeoutInitiator starts a new timer for the circuit that was previously opened. (for intermediate node)
+ *	When the timer expires another circuit is created for the destination if we have pending messages.
+ */
+func (gossiper *Gossiper) setTorExpirationTimeoutIntermediate(circuit *Circuit) {
+	ticker := time.NewTicker(time.Duration(torTimeoutCircuits * time.Minute))
+	for {
+		select {
+		case <-ticker.C:
+			// time out, the circuit expires.
+			fmt.Printf("EXPIRED circuit")
+			ticker.Stop()
+			gossiper.lCircuits.Lock()
+			delete(gossiper.lCircuits.circuits, circuit.ID)
+			gossiper.lCircuits.Unlock()
+			return
+		case <-circuit.TimeoutChan:
+			// circuit tunnel was used, reset the timer.
+			ticker = time.NewTicker(time.Duration(torTimeoutCircuits * time.Minute))
+		}
 	}
 }

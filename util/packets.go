@@ -16,6 +16,7 @@ type Message struct {
 	Budget      *uint64
 	Secure      bool
 	Anonyme     bool
+	CID         *uint32
 }
 
 func (clientMessage *Message) PrintClientMessage() {

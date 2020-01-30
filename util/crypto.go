@@ -144,7 +144,8 @@ func GetPrivateKey(path, name string) *rsa.PrivateKey {
  * Encrypt a message with a private key
  */
 func EncryptRSA(message []byte, publicKey *rsa.PublicKey) []byte {
-	encryption, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, message)
+	encryption, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey, message, nil)
+
 	CheckError(err)
 
 	return encryption
@@ -154,7 +155,8 @@ func EncryptRSA(message []byte, publicKey *rsa.PublicKey) []byte {
  * Decrypt a message with a private key
  */
 func DecryptRSA(message []byte, privateKey *rsa.PrivateKey) []byte {
-	message, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, message)
+	message, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, message, nil)
+
 	CheckError(err)
 
 	return message

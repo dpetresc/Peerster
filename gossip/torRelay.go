@@ -34,6 +34,7 @@ func (gossiper *Gossiper) decrpytTorMessageFromRelay(torMessageRelay *util.TorMe
 
 func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, source string) {
 	if c, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
+		c.TimeoutChan <- true
 		torMessage := gossiper.decrpytTorMessageFromRelay(torMessage, c.SharedKey)
 
 		switch torMessage.Flag {
@@ -55,14 +56,13 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 					Nonce:        nil,
 					Payload:      nil,
 				}
+				c.NextHOP = torMessage.NextHop
 				go gossiper.HandleTorToSecure(createTorMessage, c.NextHOP)
 			}
 		case util.TorData:
 			{
 				privateMessage := privateMessageFromTorData(torMessage)
-				gossiper.LLastPrivateMsg.Lock()
-				gossiper.LLastPrivateMsg.LastPrivateMsgTor[torMessage.CircuitID] = append(gossiper.LLastPrivateMsg.LastPrivateMsgTor[torMessage.CircuitID], privateMessage)
-				gossiper.LLastPrivateMsg.Unlock()
+				gossiper.handlePrivatePacketTor(privateMessage, privateMessage.Origin, c.ID)
 			}
 		}
 	}
@@ -70,6 +70,7 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 
 func (gossiper *Gossiper) HandleTorIntermediateRelayReply(torMessage *util.TorMessage, source string) {
 	if c, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; ok {
+		c.TimeoutChan <- true
 		torMessageBytes, err := json.Marshal(torMessage)
 		util.CheckError(err)
 		relayMessage := gossiper.encryptDataInRelay(torMessageBytes, c.SharedKey, util.Reply, c.ID)
@@ -81,49 +82,73 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 	// first find corresponding circuit
 	circuit := gossiper.findInitiatedCircuit(torMessage, source)
 	if circuit != nil {
-		if circuit.NbInitiated == 1 {
+		circuit.TimeoutChan <- true
+		torMessageFirst := gossiper.decrpytTorMessageFromRelay(torMessage, circuit.GuardNode.SharedKey)
 
-		} else if circuit.NbInitiated == 2 {
-
-		} else {
-
-		}
-		// TODO traiter le cas ou c'est une reponse à une écahnge dclé avec OR2 par ex
-		// decrpyt payload guard
-		torMessageMiddle := gossiper.decrpytTorMessageFromRelay(torMessage, circuit.GuardNode.SharedKey)
-
-		// decrpyt payload middle
-		torMessageExit := gossiper.decrpytTorMessageFromRelay(torMessageMiddle, circuit.MiddleNode.SharedKey)
-
-		// decrpyt payload exit
-		torMessagePayload := gossiper.decrpytTorMessageFromRelay(torMessageExit, circuit.ExitNode.SharedKey)
-
-		switch torMessagePayload.Flag {
-			case util.TorData: {
-				privateMessage := privateMessageFromTorData(torMessage)
-				gossiper.LLastPrivateMsg.Lock()
-				gossiper.LLastPrivateMsg.LastPrivateMsgTor[torMessage.CircuitID] = append(gossiper.LLastPrivateMsg.LastPrivateMsgTor[torMessage.CircuitID], privateMessage)
-				gossiper.LLastPrivateMsg.Unlock()
+		if circuit.NbCreated == 1 {
+			// The MIDDLE NODE exchanged key
+			if torMessageFirst.Flag != util.Extend {
+				// TODO remove should not happen
+				fmt.Println("PROBLEM !")
+				return
 			}
-			case util.Extend: {
-				// check hash of shared key
-				shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessage, circuit.ExitNode)
-				if shaKeyShared != nil {
-					circuit.NbInitiated = circuit.NbInitiated + 1
+			shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessageFirst, circuit.MiddleNode)
+			if shaKeyShared != nil {
+				circuit.NbCreated = circuit.NbCreated + 1
 
-					extendMessage := gossiper.createExtendRequest(circuit.ID, circuit.MiddleNode)
+				extendMessage := gossiper.createExtendRequest(circuit.ID, circuit.ExitNode)
 
-					extendMessageBytes, err := json.Marshal(extendMessage)
-					util.CheckError(err)
-					relayMessage := gossiper.encryptDataInRelay(extendMessageBytes,  circuit.GuardNode.SharedKey, util.Request, circuit.ID)
+				extendMessageBytes, err := json.Marshal(extendMessage)
+				util.CheckError(err)
+				relayMessage := gossiper.encryptDataInRelay(extendMessageBytes, circuit.MiddleNode.SharedKey, util.Request, circuit.ID)
+				relayMessageFinalBytes, err := json.Marshal(relayMessage)
+				util.CheckError(err)
+				relayMessageFinal := gossiper.encryptDataInRelay(relayMessageFinalBytes, circuit.GuardNode.SharedKey, util.Request, circuit.ID)
 
+				go gossiper.HandleTorToSecure(relayMessageFinal, circuit.GuardNode.Identity)
+			}
+			return
+		}
+		torMessageSecond := gossiper.decrpytTorMessageFromRelay(torMessageFirst, circuit.MiddleNode.SharedKey)
 
-					go gossiper.HandleTorToSecure(relayMessage, circuit.GuardNode.Identity)
+		if circuit.NbCreated == 2 {
+			// The EXIT NODE exchanged key
+			if torMessageSecond.Flag != util.Extend {
+				// TODO remove should not happen
+				fmt.Println("PROBLEM !")
+				return
+			}
+			shaKeyShared := extractAndVerifySharedKeyCreateReply(torMessageFirst, circuit.MiddleNode)
+			if shaKeyShared != nil {
+				circuit.NbCreated = circuit.NbCreated + 1
+
+				// send pendings messages on connection
+				for _, privateMessage := range circuit.Pending {
+					gossiper.sendTorToSecure(privateMessage, circuit)
+					gossiper.handlePrivatePacketTor(privateMessage, gossiper.Name, circuit.ID)
 				}
 			}
+		} else if circuit.NbCreated > 3 {
+			// we receive data replies from the exit node
+			torMessagePayload := gossiper.decrpytTorMessageFromRelay(torMessageSecond, circuit.ExitNode.SharedKey)
+			if torMessagePayload.Flag != util.TorData {
+				// TODO remove should not happen
+				fmt.Println("PROBLEM !")
+				return
+			}
+			privateMessage := privateMessageFromTorData(torMessage)
+			gossiper.handlePrivatePacketTor(privateMessage, circuit.ExitNode.Identity, circuit.ID)
 		}
 	} else {
 		// TODO remove
 		fmt.Println("RECEIVED INITIATE REPLY FROM " + source)
 	}
+}
+
+func (gossiper *Gossiper) handlePrivatePacketTor(privateMessage *util.PrivateMessage, origin string, cID uint32) {
+	privateMessage.Origin = origin
+	privateMessage.PrintPrivateMessage()
+	gossiper.LLastPrivateMsg.Lock()
+	gossiper.LLastPrivateMsg.LastPrivateMsgTor[cID] = append(gossiper.LLastPrivateMsg.LastPrivateMsgTor[cID], privateMessage)
+	gossiper.LLastPrivateMsg.Unlock()
 }
