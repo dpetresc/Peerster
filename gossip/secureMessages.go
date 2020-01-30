@@ -20,6 +20,15 @@ const maxRetry = 4
  *	destination string is the destination of the message.
  */
 func (gossiper *Gossiper) SecureBytesConsumer(bytes []byte, destination string) {
+
+	gossiper.lConsensus.RLock()
+	if _, ok := gossiper.lConsensus.nodesPublicKeys[destination]; !ok{
+		fmt.Printf("NO PUBLIC KEY for %s was found\n", destination)
+		gossiper.lConsensus.RUnlock()
+		return
+	}
+	gossiper.lConsensus.RUnlock()
+
 	gossiper.connections.Lock()
 	defer gossiper.connections.Unlock()
 
@@ -185,6 +194,14 @@ func Equals(bytes1, bytes2 []byte) bool {
  *	must be locked at this point. Sends a ServerHello message.
  */
 func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
+
+	gossiper.lConsensus.RLock()
+	if _, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; !ok{
+		fmt.Printf("NO PUBLIC KEY for %s was found\n", message.Origin)
+		gossiper.lConsensus.RUnlock()
+		return
+	}
+	gossiper.lConsensus.RUnlock()
 
 	if message.Nonce != nil && len(message.Nonce) == 32 {
 		//create new connection
