@@ -7,6 +7,11 @@ import (
 	"github.com/dpetresc/Peerster/util"
 )
 
+
+
+func (gossiper *Gossiper) HandlePrivateMessageToSend(dest string, privateMessage *util.PrivateMessage) {}
+func (gossiper *Gossiper) HandlePrivateMessageToReply(CID uint32, privateMessage *util.PrivateMessage) {}
+
 /*
  * 	HandleClientTorMessage handles the messages coming from the client.
  *	message *util.Message is the message sent by the client.

@@ -138,7 +138,119 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				return
 			}
 			privateMessage := privateMessageFromTorData(torMessagePayload)
-			gossiper.handlePrivatePacketTor(privateMessage, circuit.ExitNode.Identity, circuit.ID)
+
+			if privateMessage.HsFlag == util.Bridge {
+				//RDV point receives the message containing the cookie and the identity of the introduction point (IP)
+				// from the client. It forwards the cookie and its name to the IP. Finally, it keeps a state linking
+				//the cookie and the circuit used by the client.
+				gossiper.bridges.Lock()
+				gossiper.bridges.ClientServerPairs[privateMessage.Cookie] = &ClientServerPair{Client: circuit.ID,}
+				gossiper.bridges.Unlock()
+
+				newPrivMsg := &util.PrivateMessage{
+					HsFlag:   util.Introduce,
+					RDVPoint: privateMessage.RDVPoint,
+					Cookie:   privateMessage.Cookie,
+				}
+
+				gossiper.HandlePrivateMessageToSend(privateMessage.IPIdentity, newPrivMsg)
+			} else if privateMessage.HsFlag == util.Introduce {
+				//IP receives the message of the RDV point. It forwards it to the server using the connection previously
+				//established with the server.
+				privateMessage.HsFlag = util.NewCo
+				gossiper.HandlePrivateMessageToReply(circuit.ID, privateMessage)
+			} else if privateMessage.HsFlag == util.NewCo {
+				//Server receives the connection request with the cookie from the IP. It opens a connection to the RDV
+				//point and sends the cookie.
+				newPrivMsg := &util.PrivateMessage{
+					HsFlag: util.Server,
+					Cookie: privateMessage.Cookie,
+				}
+				gossiper.hsCo.Lock()
+				gossiper.hsCo.hsCos[privateMessage.Cookie].RDVPoint = privateMessage.RDVPoint
+				gossiper.hsCo.Unlock()
+				gossiper.HandlePrivateMessageToSend(privateMessage.RDVPoint, newPrivMsg)
+
+			} else if privateMessage.HsFlag == util.Server {
+				//RDV point receives the message of the server. It notifies the client and keeps a state linking, the
+				//cookie, the client's circuit ID and the server's circuit ID.
+				gossiper.bridges.Lock()
+				if pair, ok := gossiper.bridges.ClientServerPairs[privateMessage.Cookie]; ok {
+					pair.Server = circuit.ID
+					newPrivMsg := &util.PrivateMessage{
+						HsFlag: util.Ready,
+						Cookie: privateMessage.Cookie,
+					}
+					gossiper.HandlePrivateMessageToReply(pair.Client, newPrivMsg)
+				}
+				gossiper.bridges.Unlock()
+
+			} else if privateMessage.HsFlag == util.Ready {
+				//Client receives notification from RDV point and starts the DH key exchange.
+				gossiper.connectionsToHS.Lock()
+				defer gossiper.connectionsToHS.Unlock()
+
+				if onionAddr, ok := gossiper.connectionsToHS.CookiesToAddr[privateMessage.Cookie]; ok {
+					co := gossiper.connectionsToHS.Connections[onionAddr]
+					privateDH, publicDH := util.CreateDHPartialKey()
+					co.PrivateDH = privateDH
+					newPrivMsg := &util.PrivateMessage{
+						HsFlag:   util.ClientDHFwd,
+						PublicDH: publicDH,
+						Cookie:   privateMessage.Cookie,
+					}
+
+					gossiper.HandlePrivateMessageToSend(co.RDVPoint, newPrivMsg)
+				}
+			} else if privateMessage.HsFlag == util.ClientDHFwd || privateMessage.HsFlag == util.ServerDHFwd || privateMessage.HsFlag == util.HTTPFwd {
+				//RDV points receives a message that it must forward.
+				gossiper.bridges.Lock()
+				if pair, ok := gossiper.bridges.ClientServerPairs[privateMessage.Cookie]; ok {
+					if privateMessage.HsFlag == util.ClientDHFwd {
+						privateMessage.HsFlag = util.ClientDH
+					} else if privateMessage.HsFlag == util.ServerDHFwd {
+						privateMessage.HsFlag = util.ServerDH
+					} else {
+						privateMessage.HsFlag = util.HTTP
+					}
+					gossiper.HandlePrivateMessageToReply(pair.Other(circuit.ID), privateMessage)
+				}
+				gossiper.bridges.Unlock()
+
+			}else if privateMessage.HsFlag == util.ClientDH {
+				//Server receives the DH part of the client, computes its part and the shared key. It keeps a state
+				// of the connection.
+				gossiper.hsCo.Lock()
+				defer gossiper.hsCo.Unlock()
+				if co, ok := gossiper.hsCo.hsCos[privateMessage.Cookie]; ok {
+					clientPublicDH := privateMessage.PublicDH
+					privateDH, publicDH := util.CreateDHPartialKey()
+					sharedKey := util.CreateDHSharedKey(clientPublicDH, privateDH)
+					co.SharedKey = sharedKey
+
+					//TODO need private key of HS
+					signatureDH := util.SignRSA(publicDH, nil)
+					newPrivMsg := &util.PrivateMessage{
+						HsFlag:      util.ServerDHFwd,
+						Cookie:      privateMessage.Cookie,
+						PublicDH:    publicDH,
+						SignatureDH: signatureDH,
+					}
+					gossiper.HandlePrivateMessageToSend(co.RDVPoint, newPrivMsg)
+				}
+			}else if privateMessage.HsFlag == util.ServerDH{
+				gossiper.connectionsToHS.Lock()
+				defer gossiper.connectionsToHS.Unlock()
+
+				if onionAddr, ok := gossiper.connectionsToHS.CookiesToAddr[privateMessage.Cookie]; ok {
+					co := gossiper.connectionsToHS.Connections[onionAddr]
+					co.SharedKey = util.CreateDHSharedKey(privateMessage.PublicDH, co.PrivateDH)
+					fmt.Printf("CONNECTION to %s established\n", onionAddr)
+				}
+			} else {
+				gossiper.handlePrivatePacketTor(privateMessage, circuit.ExitNode.Identity, circuit.ID)
+			}
+
 		}
 	} else {
 		// TODO remove

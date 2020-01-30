@@ -88,6 +88,23 @@ func (peerMessage *StatusPacket) PrintStatusMessage(sourceAddr string) {
 	}*/
 }
 
+type HSFlag uint32
+
+const (
+	None HSFlag = iota
+	Bridge
+	Introduce
+	NewCo
+	Server
+	Ready
+	ClientDHFwd
+	ClientDH
+	ServerDHFwd
+	ServerDH
+	HTTPFwd
+	HTTP
+)
+
 /******************** PRIVATE MESSAGE ********************/
 type PrivateMessage struct {
 	Origin      string
@@ -95,6 +112,13 @@ type PrivateMessage struct {
 	Text        string
 	Destination string
 	HopLimit    uint32
+	//HS flags
+	HsFlag      HSFlag
+	RDVPoint    string
+	IPIdentity  string
+	Cookie      uint64
+	PublicDH    []byte
+	SignatureDH []byte
 }
 
 func (peerMessage *PrivateMessage) PrintPrivateMessage() {
