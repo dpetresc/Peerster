@@ -222,13 +222,36 @@ func (consensus *LockConsensus) sendDescriptorToConsensus() {
 }
 
 /*
- * 	checkMyPublicKeyInConsensus checks if the consensus has my "correct" public key (no impersonation)
+ *	checkMyPublicKeyInConsensus checks if the consensus has my "correct" public key (no impersonation)
  */
 func (gossiper *Gossiper) checkMyPublicKeyInConsensus() {
-	mConsensusPublicKey := gossiper.lConsensus.nodesPublicKeys[gossiper.Name]
-	if mConsensusPublicKey.N != gossiper.lConsensus.privateKey.PublicKey.N ||
-		mConsensusPublicKey.E != gossiper.lConsensus.privateKey.PublicKey.E {
-		util.CheckError(errors.New("Consensus has wrong public key !"))
+	if _, ok := gossiper.lConsensus.nodesPublicKeys[gossiper.Name]; ok {
+		mConsensusPublicKey := gossiper.lConsensus.nodesPublicKeys[gossiper.Name]
+		if mConsensusPublicKey.N.Cmp(gossiper.lConsensus.privateKey.PublicKey.N) != 0 ||
+			mConsensusPublicKey.E != gossiper.lConsensus.privateKey.PublicKey.E {
+			util.CheckError(errors.New("Consensus has wrong public key !"))
+		}
+	}
+}
+
+/*
+ *	checkCircuitsWithNewConsensus checks if we have circuits with nodes that aren't in the consensus anymore
+ *  if this is the case initiateNewCircuit
+ */
+func (gossiper *Gossiper) checkCircuitsWithNewConsensus() {
+	for dest, c := range gossiper.lCircuits.initiatedCircuit {
+		if _, ok := gossiper.lConsensus.nodesPublicKeys[dest]; !ok {
+			delete(gossiper.lCircuits.initiatedCircuit, dest)
+			return
+		}
+		if _, ok := gossiper.lConsensus.nodesPublicKeys[c.GuardNode.Identity]; !ok {
+			gossiper.changeCircuitPath(c, dest)
+			return
+		}
+		if _, ok := gossiper.lConsensus.nodesPublicKeys[c.MiddleNode.Identity]; !ok {
+			gossiper.changeCircuitPath(c, dest)
+			return
+		}
 	}
 }
 
@@ -246,9 +269,9 @@ func (gossiper *Gossiper) getConsensus() {
 	gossiper.lConsensus.Lock()
 	if !util.VerifyRSASignature(nodesIDPublicKeys, CAResponse.Signature, gossiper.lConsensus.CAKey) {
 		err = errors.New("CA corrupted")
-		util.CheckError(err)
 		gossiper.lConsensus.Unlock()
-		gossiper.lCircuits.Lock()
+		gossiper.lCircuits.Unlock()
+		util.CheckError(err)
 		return
 	}
 	gossiper.lConsensus.nodesPublicKeys = CAResponse.NodesIDPublicKeys
@@ -258,28 +281,7 @@ func (gossiper *Gossiper) getConsensus() {
 	gossiper.checkCircuitsWithNewConsensus()
 
 	gossiper.lConsensus.Unlock()
-	gossiper.lCircuits.Lock()
-}
-
-/*
- * checkCircuitsWithNewConsensus checks if we have circuits with nodes that aren't in the consensus anymore
- *  if this is the case initiateNewCircuit
-*/
-func (gossiper *Gossiper) checkCircuitsWithNewConsensus() {
-	for dest, c := range gossiper.lCircuits.initiatedCircuit {
-		if _, ok := gossiper.lConsensus.nodesPublicKeys[dest]; !ok {
-			delete(gossiper.lCircuits.initiatedCircuit, dest)
-			return
-		}
-		if _, ok := gossiper.lConsensus.nodesPublicKeys[c.GuardNode.Identity]; !ok {
-			gossiper.changeCircuitPath(c, dest)
-			return
-		}
-		if _, ok := gossiper.lConsensus.nodesPublicKeys[c.MiddleNode.Identity]; !ok {
-			gossiper.changeCircuitPath(c, dest)
-			return
-		}
-	}
+	gossiper.lCircuits.Unlock()
 }
 
 func (gossiper *Gossiper) Consensus() {

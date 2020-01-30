@@ -51,6 +51,17 @@ func setConsensus(nodesPublicKeys map[string]*rsa.PublicKey) {
 	mConsensus.Signature = signature
 }
 
+func (c consensus) String() string {
+	if len(c.NodesIDPublicKeys) == 0 {
+		return ""
+	}
+	s := ""
+	for node,_ := range c.NodesIDPublicKeys {
+		s += node + ", "
+	}
+	return s[:len(s)-2]
+}
+
 func updateConsensus() {
 	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Second)
 	defer ticker.Stop()

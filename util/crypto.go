@@ -16,7 +16,7 @@ import (
 )
 
 // TODO change timer
-var ConsensusTimerMin uint32 = 1
+var ConsensusTimerMin uint32 = 30
 var CAAddress = "127.0.0.1:4343"
 
 // folder where the keys needed by this node are stored

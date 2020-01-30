@@ -2,11 +2,9 @@ package gossip
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
-	"github.com/monnand/dhkx"
 	"time"
 )
 
@@ -182,7 +180,6 @@ func Equals(bytes1, bytes2 []byte) bool {
 	return true
 }
 
-
 /*
  *	handleClientHello handles the received ClientHello messages. Notice that gossiper.connections
  *	must be locked at this point. Sends a ServerHello message.
@@ -211,15 +208,8 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 
 		fmt.Printf("CONNECTION with %s opened\n", message.Origin)
 
-		g, err := dhkx.GetGroup(0)
-		util.CheckError(err)
-
-		privateDH, err := g.GeneratePrivateKey(nil)
-		util.CheckError(err)
-
+		privateDH, publicDH := util.CreateDHPartialKey()
 		tunnelId.PrivateDH = privateDH
-
-		publicDH := privateDH.Bytes()
 
 		gossiper.lConsensus.RLock()
 		DHSignature := util.SignRSA(publicDH, gossiper.lConsensus.privateKey)
@@ -256,19 +246,12 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			tunnelId.ACKsHandshake <- true
 			tunnelId.NextPacket = util.ServerFinished
 
-			g, err := dhkx.GetGroup(0)
-			util.CheckError(err)
-
-			privateDH, err := g.GeneratePrivateKey(nil)
-			util.CheckError(err)
+			privateDH, publicDH := util.CreateDHPartialKey()
 			tunnelId.PrivateDH = privateDH
 
-			sharedKey, err := g.ComputeKey(dhkx.NewPublicKey(message.DHPublic), privateDH)
-			util.CheckError(err)
-			shaKeyShared := sha256.Sum256(sharedKey.Bytes())
-			tunnelId.SharedKey = shaKeyShared[:]
+			shaKeyShared := util.CreateDHSharedKey(message.DHPublic, privateDH)
+			tunnelId.SharedKey = shaKeyShared
 
-			publicDH := privateDH.Bytes()
 			DHSignature := util.SignRSA(publicDH, gossiper.lConsensus.privateKey)
 
 			response := &util.SecureMessage{
@@ -286,7 +269,7 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			gossiper.HandleSecureMessage(response)
 			go gossiper.startTimer(response)
 		}
-	}else{
+	} else {
 		fmt.Printf("No KEY for %s\n", message.Origin)
 	}
 }
@@ -305,12 +288,8 @@ func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
 			tunnelId.ACKsHandshake <- true
 			tunnelId.NextPacket = util.ClientFinished
 
-			g, err := dhkx.GetGroup(0)
-			util.CheckError(err)
-			sharedKey, err := g.ComputeKey(dhkx.NewPublicKey(message.DHPublic), tunnelId.PrivateDH)
-			util.CheckError(err)
-			shaKeyShared := sha256.Sum256(sharedKey.Bytes())
-			tunnelId.SharedKey = shaKeyShared[:]
+			shaKeyShared := util.CreateDHSharedKey(message.DHPublic, tunnelId.PrivateDH)
+			tunnelId.SharedKey = shaKeyShared
 
 			encryptedHandshake, nonceGCM := gossiper.encryptHandshake(tunnelId)
 
@@ -327,7 +306,7 @@ func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
 			gossiper.HandleSecureMessage(response)
 			go gossiper.startTimer(response)
 		}
-	}else{
+	} else {
 		fmt.Printf("No KEY for %s\n", message.Origin)
 	}
 
@@ -592,7 +571,7 @@ func (gossiper *Gossiper) startTimer(message *util.SecureMessage) {
 				}
 				tunnelId.TimeOut *= 2
 				gossiper.HandleSecureMessage(message)
-			}else{
+			} else {
 				//Connection was already aborted previously
 				ticker.Stop()
 				gossiper.connections.Unlock()

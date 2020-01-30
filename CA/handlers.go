@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"github.com/dpetresc/Peerster/util"
 	"net/http"
 )
@@ -21,7 +22,10 @@ func ConsensusHandler(w http.ResponseWriter, r *http.Request) {
 		mConsensusTracking.Lock()
 		mConsensusTracking.NodesRunning[string(nodes[0])] = true
 		mConsensusTracking.Unlock()
+		mConsensus.RLock()
 		jsonConsensus, err := json.Marshal(mConsensus)
+		fmt.Println(mConsensus)
+		mConsensus.RUnlock()
 		util.CheckError(err)
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonConsensus)
@@ -37,6 +41,7 @@ func DescriptorHandler(w http.ResponseWriter, r *http.Request) {
 		util.CheckError(err)
 
 		newNodeIdentityStr := string(descriptor.Identity)
+		fmt.Println("Receive Descriptor for " + newNodeIdentityStr)
 		newNode := append(descriptor.PublicKey[:], descriptor.Identity[:]...)
 		newNodeRSAPublicKey, err := x509.ParsePKCS1PublicKey(descriptor.PublicKey)
 		util.CheckError(err)
