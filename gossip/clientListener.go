@@ -138,6 +138,10 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				// request file with specified destination
 				go gossiper.startDownload(packet)
 			}
+		} else if packet.Topic != nil {
+			go gossiper.createHS(packet)
+		} else if packet.OnionAddr != nil {
+			go gossiper.joinHS(packet)
 		} else {
 			// index file
 			go gossiper.IndexFile(*packet.File)

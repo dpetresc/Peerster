@@ -21,6 +21,7 @@ var CAAddress = "127.0.0.1:4343"
 
 // folder where the keys needed by this node are stored
 var KeysFolderPath = "./_MyKeys/"
+var KeysHS = "./_HSKeys/"
 
 // DH group used in all the Peerster crypto
 var DHGroupID = 0
