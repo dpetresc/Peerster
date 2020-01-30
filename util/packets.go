@@ -14,9 +14,15 @@ type Message struct {
 	Request     *[]byte
 	Keywords    *string
 	Budget      *uint64
-	Secure      bool
-	Anonyme     bool
-	CID         *uint32
+
+	// Secure and anonymity
+	Secure  bool
+	Anonyme bool
+	CID     *uint32
+
+	// Hidden service
+	HSPort    *string
+	OnionAddr *string
 }
 
 func (clientMessage *Message) PrintClientMessage() {
@@ -61,7 +67,7 @@ type RumorMessage struct {
 
 func (peerMessage *RumorMessage) PrintRumorMessage(sourceAddr string) {
 	/*fmt.Printf("RUMOR origin %s from %s ID %d contents %s\n", peerMessage.Origin,
-		sourceAddr, peerMessage.ID, peerMessage.Text)*/
+	sourceAddr, peerMessage.ID, peerMessage.Text)*/
 }
 
 /******************** STATUS PACKET ********************/
@@ -268,6 +274,6 @@ type TorMessage struct {
 }
 
 func (torMessage *TorMessage) String() string {
-	return fmt.Sprintf("ID: %d \n DHPublic: %x \n" +
+	return fmt.Sprintf("ID: %d \n DHPublic: %x \n"+
 		"DHSharedHash: %x", torMessage.CircuitID, torMessage.DHPublic, torMessage.DHSharedHash)
 }

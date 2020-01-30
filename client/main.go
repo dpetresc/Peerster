@@ -20,6 +20,8 @@ var budget int64
 var secure bool
 var cID int64
 var anonyme bool
+var hsPort string
+var onionAddr string
 
 var clientAddrStr string
 
@@ -31,40 +33,46 @@ func init() {
 	flag.StringVar(&request, "request", "", "​file hexadecimal MetaHash")
 	flag.StringVar(&keywords, "keywords", "", "keywords for the file search")
 	flag.Int64Var(&budget, "budget", -1, "budget for the file search (optional)")
+
+	// secure and anonymity
 	flag.BoolVar(&secure, "sec", false, "option used to send encrypted private messages")
-	// if anonyme is false the destination knows who sent the message
 	flag.Int64Var(&cID, "cID", -1, "used when we reply to a Tor message")
+	// if anonyme is false the destination knows who sent the message
 	flag.BoolVar(&anonyme, "anonyme", false, "option used to send remain anonyme while using Tor")
+
+	// hidden service
+	flag.StringVar(&hsPort, "HSPort", "", "port on which we want to create the hidden service")
+	flag.StringVar(&onionAddr, "onionAddr", "", "onionAddr of the hidden service we want to join")
 
 	flag.Parse()
 }
 
-func logBadArgumentCombination(){
+func logBadArgumentCombination() {
 	fmt.Println("​ERROR (Bad argument combination)​")
 	os.Exit(1)
 }
 
-func logBadRequestHashFormat(){
+func logBadRequestHashFormat() {
 	fmt.Println("ERROR (Unable to decode hex hash)")
 	os.Exit(1)
 }
 
-func isCorrectArgumentCombination() bool{
+func isCorrectArgumentCombination() bool {
 	// Flags: dest + msg + file + request + keywords + budget
 
 	// hw2 exercise 3 combination: (dest + msg) ou msg
 	if (dest != "" && msg != "" && file == "" && request == "" && keywords == "" && budget == -1) ||
-		(dest == "" && msg != "" && file == "" && request == "" && keywords == "" && budget == -1){
+		(dest == "" && msg != "" && file == "" && request == "" && keywords == "" && budget == -1) {
 		return true
 	}
 
 	// hw2 exercise 4 combination: index file
-	if dest == "" && msg == "" && file != "" && request == "" && keywords == "" && budget == -1{
+	if dest == "" && msg == "" && file != "" && request == "" && keywords == "" && budget == -1 {
 		return true
 	}
 
 	// hw2 exercise 6 combination: dest + file + request
-	if dest != "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1{
+	if dest != "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1 {
 		return true
 	}
 
@@ -73,19 +81,24 @@ func isCorrectArgumentCombination() bool{
 		return true
 	}
 	// hw3 download previous search requested file
-	if dest == "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1{
+	if dest == "" && msg == "" && file != "" && request != "" && keywords == "" && budget == -1 {
+		return true
+	}
+
+	// HS
+	if hsPort != "" || onionAddr != "" {
 		return true
 	}
 	return false
 }
 
-func isCorrectRequestHashFormat() bool{
-	if request != ""{
+func isCorrectRequestHashFormat() bool {
+	if request != "" {
 		bytes, err := hex.DecodeString(request)
 		if err != nil {
 			return false
 		}
-		if len(bytes) != 32{
+		if len(bytes) != 32 {
 			return false
 		}
 	}
@@ -93,10 +106,10 @@ func isCorrectRequestHashFormat() bool{
 }
 
 func checkClientFlags() {
-	if(!isCorrectArgumentCombination()){
+	if !isCorrectArgumentCombination() {
 		logBadArgumentCombination()
 	}
-	if(!isCorrectRequestHashFormat()){
+	if !isCorrectRequestHashFormat() {
 		logBadRequestHashFormat()
 	}
 }
@@ -114,6 +127,12 @@ func dealWithEmptyField(packetToSend *util.Message, requestBytes []byte) {
 	if file == "" {
 		packetToSend.File = nil
 	}
+	if hsPort == "" {
+		packetToSend.HSPort = nil
+	}
+	if onionAddr == "" {
+		packetToSend.OnionAddr = nil
+	}
 }
 
 func main() {
@@ -124,13 +143,15 @@ func main() {
 	requestBytes, _ := hex.DecodeString(request)
 
 	packetToSend := util.Message{
-		Text: msg,
+		Text:        msg,
 		Destination: &dest,
-		File: &file,
-		Request: &requestBytes,
-		Keywords: &keywords,
-		Secure: secure,
-		Anonyme: anonyme,
+		File:        &file,
+		Request:     &requestBytes,
+		Keywords:    &keywords,
+		Secure:      secure,
+		Anonyme:     anonyme,
+		HSPort:      &hsPort,
+		OnionAddr:   &onionAddr,
 	}
 	if budget != -1 {
 		uintBudget := uint64(budget)

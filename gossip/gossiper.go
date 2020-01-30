@@ -22,7 +22,7 @@ type LockAllMsg struct {
 }
 
 type LockLastPrivateMsg struct {
-	LastPrivateMsg map[string][]*util.PrivateMessage
+	LastPrivateMsg    map[string][]*util.PrivateMessage
 	LastPrivateMsgTor map[uint32][]*util.PrivateMessage
 	sync.RWMutex
 }
@@ -80,6 +80,9 @@ type Gossiper struct {
 
 	// Tor
 	lCircuits *LockCircuits
+
+	// HS
+	lHS *LockHS
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
@@ -108,7 +111,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 
 	lockLastPrivateMsg := LockLastPrivateMsg{
-		LastPrivateMsg: make(map[string][]*util.PrivateMessage),
+		LastPrivateMsg:    make(map[string][]*util.PrivateMessage),
 		LastPrivateMsgTor: make(map[uint32][]*util.PrivateMessage),
 	}
 
@@ -170,6 +173,12 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lCircuits = nil
 	}
 
+	lHS := &LockHS{
+		MPrivateKeys: make(map[string]*rsa.PrivateKey),
+		HashMap:      make(map[string]*HSDescriptor),
+		RWMutex:      sync.RWMutex{},
+	}
+
 	return &Gossiper{
 		Address:              udpAddr,
 		conn:                 udpConn,
@@ -196,6 +205,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lConsensus:           lConsensus,
 		connections:          NewConnections(),
 		lCircuits:            lCircuits,
+		lHS:                  lHS,
 	}
 }
 
@@ -293,6 +303,19 @@ func (gossiper *Gossiper) Consensus() {
 		select {
 		case <-ticker.C:
 			gossiper.getConsensus()
+		}
+	}
+}
+
+func (gossiper *Gossiper) HSConsensus() {
+	gossiper.getHSFromConsensus()
+	//TODO MODIFIED
+	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			gossiper.getHSFromConsensus()
 		}
 	}
 }

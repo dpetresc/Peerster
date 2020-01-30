@@ -61,6 +61,10 @@ func main() {
 		go func() {
 			mGossiper.Consensus()
 		}()
+
+		go func() {
+			mGossiper.HSConsensus()
+		}()
 	}
 
 	go func() {

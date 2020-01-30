@@ -25,29 +25,43 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
 	gossiper.lConsensus.Lock()
 	if message.CID == nil {
 		// SEND
-		if circuit, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
-			if circuit.NbCreated == 3 {
-				// Tor circuit exists and is already initiated and ready to be used
-				gossiper.sendTorToSecure(privateMessage, circuit)
-			} else {
-				circuit.Pending = append(circuit.Pending, privateMessage)
-			}
-		} else {
-			privateMessages := make([]*util.PrivateMessage, 0, 1)
-			privateMessages = append(privateMessages, privateMessage)
-			gossiper.initiateNewCircuit(dest, privateMessages)
-		}
+		gossiper.HandlePrivateMessageToSend(dest, privateMessage)
 	} else {
 		// REPLY
-		if circuit, ok := gossiper.lCircuits.circuits[*message.CID]; ok {
-			gossiper.sendReplyPrivateMessage(privateMessage, circuit)
-			gossiper.handlePrivatePacketTor(privateMessage, gossiper.Name, circuit.ID)
-		} else {
-			fmt.Printf("Can not reply to message on circuit %d because it expired", *message.CID)
-		}
+		gossiper.HandlePrivateMessageToReply(*message.CID, privateMessage)
 	}
 	gossiper.lConsensus.Unlock()
 	gossiper.lCircuits.Unlock()
+}
+
+/*
+ * HandlePrivateMessageToSend send a private message to dest with Tor
+ */
+func (gossiper *Gossiper) HandlePrivateMessageToSend(dest string, privateMessage *util.PrivateMessage) {
+	if circuit, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
+		if circuit.NbCreated == 3 {
+			// Tor circuit exists and is already initiated and ready to be used
+			gossiper.sendTorToSecure(privateMessage, circuit)
+		} else {
+			circuit.Pending = append(circuit.Pending, privateMessage)
+		}
+	} else {
+		privateMessages := make([]*util.PrivateMessage, 0, 1)
+		privateMessages = append(privateMessages, privateMessage)
+		gossiper.initiateNewCircuit(dest, privateMessages)
+	}
+}
+
+/*
+ * HandlePrivateMessageToReply send a private message on CID circuit
+ */
+func (gossiper *Gossiper) HandlePrivateMessageToReply(CID uint32, privateMessage *util.PrivateMessage) {
+	if circuit, ok := gossiper.lCircuits.circuits[CID]; ok {
+		gossiper.sendReplyPrivateMessage(privateMessage, circuit)
+		gossiper.handlePrivatePacketTor(privateMessage, gossiper.Name, circuit.ID)
+	} else {
+		fmt.Printf("Can not reply to message on circuit %d because it expired", CID)
+	}
 }
 
 /*
