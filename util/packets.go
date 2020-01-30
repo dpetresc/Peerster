@@ -162,8 +162,8 @@ func (searchResult *SearchResult) PrintSearchMatch(origin string) {
  * 	4) ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
  *	5) ClientFinished is sent by A and contains the encrypted handshake
  *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
- *  6) ACK
- *	7)+ Payload are the secure messages
+ *  6) ACKClientFinished
+ *	7)+ Data are the secure messages
  */
 type MessageType uint32
 
@@ -173,20 +173,34 @@ const (
 	ChangeCipherSec
 	ServerFinished
 	ClientFinished
-	ACK
+	ACKClientFinished
 	Data
+	ACK
 )
 
-type Flag uint32
-
-const (
-	Private Flag = iota
-	Tor
-)
+func (mt *MessageType) String() string {
+	switch *mt {
+	case ClientHello:
+		return "ClientHello"
+	case ServerHello:
+		return "ServerHello"
+	case ChangeCipherSec:
+		return "ChangeCipherSec"
+	case ServerFinished:
+		return "ServerFinished"
+	case ClientFinished:
+		return "ClientFinished"
+	case ACKClientFinished:
+		return "ACKClientFinished"
+	case Data:
+		return "Data"
+	default:
+		return "Data"
+	}
+}
 
 type SecureMessage struct {
 	MessageType   MessageType
-	Flag          Flag
 	Nonce         []byte
 	DHPublic      []byte
 	DHSignature   []byte
@@ -195,6 +209,7 @@ type SecureMessage struct {
 	Origin        string
 	Destination   string
 	HopLimit      uint32
+	CTR           uint32
 }
 
 func (secMsg *SecureMessage) Bytes() []byte {
@@ -207,7 +222,6 @@ func (secMsg *SecureMessage) Bytes() []byte {
 	bytes = append(bytes, secMsg.GCMNonce...)
 	bytes = append(bytes, []byte(secMsg.Origin)...)
 	bytes = append(bytes, []byte(secMsg.Destination)...)
-	bytes = append(bytes, []byte(strconv.Itoa(int(secMsg.HopLimit)))...)
 	return bytes
 
 }

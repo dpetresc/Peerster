@@ -284,7 +284,8 @@ func (gossiper *Gossiper) checkCircuitsWithNewConsensus() {
 
 func (gossiper *Gossiper) Consensus() {
 	gossiper.getConsensus()
-	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Minute)
+	//TODO MODIFIED
+	ticker := time.NewTicker(time.Duration(util.ConsensusTimerMin) * time.Second)
 	defer ticker.Stop()
 	for {
 		select {

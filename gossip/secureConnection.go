@@ -4,6 +4,7 @@ import (
 	"github.com/dpetresc/Peerster/util"
 	"github.com/monnand/dhkx"
 	"sync"
+	"time"
 )
 
 /*
@@ -19,12 +20,17 @@ type TunnelIdentifier struct {
 	TimeoutChan       chan bool
 	Nonce             []byte
 	NextPacket        util.MessageType
-	Pending           []*util.Message
+	Pending           [][]byte
 	PrivateDH         *dhkx.DHKey
 	SharedKey         []byte
 	HandShakeMessages []*util.SecureMessage
-	CTRSet            map[uint32]bool
 	CTR               uint32
+	TimeOut           time.Duration
+	ACKsHandshake     chan bool
+	ACKs              map[uint32]chan bool
+	ConsecutiveTO     uint32
+	ToDeliver         []*util.SecureMessage
+	NextID            uint32
 }
 
 /*

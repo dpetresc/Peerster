@@ -10,31 +10,30 @@ import (
 	"time"
 )
 
-const TimeoutDuration = time.Duration(1 * time.Minute)
+const ExpirationDuration = time.Duration(3 * time.Minute)
+const TimeoutDuration = time.Duration(10 * time.Second)
 const HopLimit = 10
-
-/* TODO REMOVE
- */
-func (gossiper *Gossiper) SecureBytesConsumer(bytes []byte, destination string) {
-}
+const maxRetry = 4
 
 /*
- * 	HandleClientSecureMessage handles the messages coming from the client.
- *	message *util.Message is the message sent by the client.
+ *	SecureBytesConsumer sends bytes through a secure channel. The channel is created if it does not exist yet.
+ *
+ *	bytes	[]byte is the data that must be sent.
+ *	destination string is the destination of the message.
  */
-func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
-	dest := *message.Destination
+func (gossiper *Gossiper) SecureBytesConsumer(bytes []byte, destination string) {
 	gossiper.connections.Lock()
 	defer gossiper.connections.Unlock()
 
-	if tunnelId, ok := gossiper.connections.Conns[dest]; ok {
+	if tunnelId, ok := gossiper.connections.Conns[destination]; ok {
 		tunnelId.TimeoutChan <- true
 
 		if tunnelId.NextPacket != util.Data {
-			tunnelId.Pending = append(tunnelId.Pending, message)
+			tunnelId.Pending = append(tunnelId.Pending, bytes)
 			fmt.Println("PENDING message received from client")
 		} else {
-			gossiper.sendSecureMessage(message, tunnelId)
+			gossiper.sendSecureMessage(bytes, tunnelId, destination)
+
 		}
 	} else {
 
@@ -43,46 +42,51 @@ func (gossiper *Gossiper) HandleClientSecureMessage(message *util.Message) {
 		_, err := rand.Read(nonce)
 		util.CheckError(err)
 		newTunnelId := &TunnelIdentifier{
-			TimeoutChan: make(chan bool),
-			Nonce:       nonce,
-			NextPacket:  util.ServerHello,
-			Pending:     make([]*util.Message, 0, 1),
-			CTRSet:      make(map[uint32]bool),
-			CTR:         0,
+			TimeoutChan:   make(chan bool),
+			Nonce:         nonce,
+			NextPacket:    util.ServerHello,
+			Pending:       make([][]byte, 0, 1),
+			CTR:           0,
+			TimeOut:       TimeoutDuration,
+			ACKs:          make(map[uint32]chan bool),
+			ConsecutiveTO: 0,
+			NextID:        0,
+			ToDeliver:     make([]*util.SecureMessage, 0),
 		}
-		newTunnelId.Pending = append(newTunnelId.Pending, message)
-		gossiper.connections.Conns[dest] = newTunnelId
+		newTunnelId.Pending = append(newTunnelId.Pending, bytes)
+		gossiper.connections.Conns[destination] = newTunnelId
 
 		secureMessage := &util.SecureMessage{
 			MessageType: util.ClientHello,
 			Nonce:       nonce,
 			Origin:      gossiper.Name,
-			Destination: dest,
+			Destination: destination,
 			HopLimit:    HopLimit,
 		}
 
 		newTunnelId.HandShakeMessages = append(newTunnelId.HandShakeMessages, secureMessage)
 
-		go gossiper.setTimeout(dest, newTunnelId)
-		fmt.Printf("CONNECTION with %s opened\n", dest)
+		go gossiper.setExpirationTimeout(destination, newTunnelId)
+		fmt.Printf("CONNECTION with %s opened\n", destination)
 		gossiper.HandleSecureMessage(secureMessage)
+		go gossiper.startTimer(secureMessage)
 
 	}
 }
 
 /*
- *	sendSecureMessage sends a tor message of type Payload created from a Message.
- *	The payload has the following format: bytes(Nonce)||bytes(CTR)||bytes(text)
- *	where Nonce is 32 bytes long, CTR is 4 bytes long and text has a variable length.
+*	sendSecureMessage sends a secure message of type Data created from a Message.
+*	The payload has the following format: bytes(Nonce)||bytes(CTR)||bytes(text)
+*	where Nonce is 32 bytes long, CTR is 4 bytes long and text has a variable length.
  */
-func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId *TunnelIdentifier) {
+func (gossiper *Gossiper) sendSecureMessage(bytesData []byte, tunnelId *TunnelIdentifier, destination string) {
 
-	toEncrypt := make([]byte,0)
+	toEncrypt := make([]byte, 0)
 	toEncrypt = append(toEncrypt, tunnelId.Nonce...)
-	ctrBytes := make([]byte,4)
+	ctrBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(ctrBytes, tunnelId.CTR)
 	toEncrypt = append(toEncrypt, ctrBytes...)
-	toEncrypt = append(toEncrypt, []byte(message.Text)...)
+	toEncrypt = append(toEncrypt, bytesData...)
 
 	ciphertext, nonceGCM := util.EncryptGCM(toEncrypt, tunnelId.SharedKey)
 	secMsg := &util.SecureMessage{
@@ -91,11 +95,13 @@ func (gossiper *Gossiper) sendSecureMessage(message *util.Message, tunnelId *Tun
 		EncryptedData: ciphertext,
 		GCMNonce:      nonceGCM,
 		Origin:        gossiper.Name,
-		Destination:   *message.Destination,
+		Destination:   destination,
 		HopLimit:      HopLimit,
+		CTR:           tunnelId.CTR,
 	}
 	tunnelId.CTR += 1
 	gossiper.HandleSecureMessage(secMsg)
+	go gossiper.startTimer(secMsg)
 }
 
 /*
@@ -123,30 +129,34 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 		gossiper.connections.Lock()
 		defer gossiper.connections.Unlock()
 		if tunnelId, ok := gossiper.connections.Conns[secureMessage.Origin]; ok {
-			if tunnelId.NextPacket == secureMessage.MessageType && util.Equals(secureMessage.Nonce, tunnelId.Nonce) {
-
-				tunnelId.TimeoutChan <- true
-				tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
-
+			tunnelId.TimeoutChan <- true
+			if tunnelId.NextPacket == secureMessage.MessageType && Equals(secureMessage.Nonce, tunnelId.Nonce) {
 				switch secureMessage.MessageType {
 				case util.ServerHello:
 					fmt.Println("HANDSHAKE ServerHello")
+					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleServerHello(secureMessage)
 				case util.ChangeCipherSec:
 					fmt.Println("HANDSHAKE ChangeCipherSec")
+					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleChangeCipherSec(secureMessage)
 				case util.ServerFinished:
 					fmt.Println("HANDSHAKE ServerFinished")
+					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleServerFinished(secureMessage)
 				case util.ClientFinished:
 					fmt.Println("HANDSHAKE ClientFinished")
+					tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, secureMessage)
 					gossiper.handleClientFinished(secureMessage)
-				case util.ACK:
-					gossiper.handleACK(secureMessage)
+				case util.ACKClientFinished:
+					fmt.Println("HANDSHAKE ACKClientFinished")
+					gossiper.handleACKClientFinished(secureMessage)
 				case util.Data:
 					gossiper.handleData(secureMessage)
 
 				}
+			} else if secureMessage.MessageType == util.ACK {
+				tunnelId.ACKs[secureMessage.CTR] <- true
 			}
 
 		} else if secureMessage.MessageType == util.ClientHello {
@@ -157,6 +167,23 @@ func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage)
 }
 
 /*
+ *	Equals check that two byte slices are equal, i.e., each byte at each position is equal in the two slices.
+ */
+func Equals(bytes1, bytes2 []byte) bool {
+	if len(bytes1) != len(bytes2) {
+		return false
+	}
+
+	for i := range bytes1 {
+		if bytes1[i] != bytes2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+
+/*
  *	handleClientHello handles the received ClientHello messages. Notice that gossiper.connections
  *	must be locked at this point. Sends a ServerHello message.
  */
@@ -164,20 +191,23 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 
 	if message.Nonce != nil && len(message.Nonce) == 32 {
 		//create new connection
-
 		tunnelId := &TunnelIdentifier{
 			TimeoutChan:       make(chan bool),
 			Nonce:             message.Nonce,
 			NextPacket:        util.ChangeCipherSec,
-			Pending:           make([]*util.Message, 0),
+			Pending:           make([][]byte, 0),
 			HandShakeMessages: make([]*util.SecureMessage, 0),
-			CTRSet:            make(map[uint32]bool),
 			CTR:               0,
+			ACKs:              make(map[uint32]chan bool),
+			ConsecutiveTO:     0,
+			TimeOut:           TimeoutDuration,
+			NextID:            0,
+			ToDeliver:         make([]*util.SecureMessage, 0),
 		}
 		tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, message)
 
 		gossiper.connections.Conns[message.Origin] = tunnelId
-		go gossiper.setTimeout(message.Origin, tunnelId)
+		go gossiper.setExpirationTimeout(message.Origin, tunnelId)
 
 		fmt.Printf("CONNECTION with %s opened\n", message.Origin)
 
@@ -208,6 +238,7 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
 
 		gossiper.HandleSecureMessage(response)
+		go gossiper.startTimer(response)
 
 	}
 }
@@ -218,9 +249,11 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
  */
 func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 	gossiper.lConsensus.RLock()
+	defer gossiper.lConsensus.RUnlock()
 	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
 		if util.VerifyRSASignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
+			tunnelId.ACKsHandshake <- true
 			tunnelId.NextPacket = util.ServerFinished
 
 			g, err := dhkx.GetGroup(0)
@@ -251,10 +284,11 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
 
 			gossiper.HandleSecureMessage(response)
+			go gossiper.startTimer(response)
 		}
+	}else{
+		fmt.Printf("No KEY for %s\n", message.Origin)
 	}
-	gossiper.lConsensus.RUnlock()
-
 }
 
 /*
@@ -268,6 +302,7 @@ func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
 	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
 		if util.VerifyRSASignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
+			tunnelId.ACKsHandshake <- true
 			tunnelId.NextPacket = util.ClientFinished
 
 			g, err := dhkx.GetGroup(0)
@@ -290,7 +325,10 @@ func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
 			}
 			tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
 			gossiper.HandleSecureMessage(response)
+			go gossiper.startTimer(response)
 		}
+	}else{
+		fmt.Printf("No KEY for %s\n", message.Origin)
 	}
 
 }
@@ -302,8 +340,8 @@ func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
 func (gossiper *Gossiper) handleServerFinished(message *util.SecureMessage) {
 	tunnelId := gossiper.connections.Conns[message.Origin]
 	if gossiper.checkFinishedMessages(message.EncryptedData, message.GCMNonce, tunnelId) {
-		tunnelId.NextPacket = util.ACK
-
+		tunnelId.ACKsHandshake <- true
+		tunnelId.NextPacket = util.ACKClientFinished
 		encryptedHandshake, nonceGCM := gossiper.encryptHandshake(tunnelId)
 
 		response := &util.SecureMessage{
@@ -317,36 +355,51 @@ func (gossiper *Gossiper) handleServerFinished(message *util.SecureMessage) {
 		}
 		tunnelId.HandShakeMessages = append(tunnelId.HandShakeMessages, response)
 		gossiper.HandleSecureMessage(response)
+		go gossiper.startTimer(response)
 	}
 }
 
+/*
+ *	handleClientFinished handles the messages of the handshake. Notice that gossiper.connections
+ *	must be locked at this point. Sends a ACKClientFinished message.
+ */
 func (gossiper *Gossiper) handleClientFinished(message *util.SecureMessage) {
 	tunnelId := gossiper.connections.Conns[message.Origin]
 	if gossiper.checkFinishedMessages(message.EncryptedData, message.GCMNonce, tunnelId) {
 		tunnelId.NextPacket = util.Data
 
 		ack := &util.SecureMessage{
-			MessageType: util.ACK,
+			MessageType: util.ACKClientFinished,
 			Nonce:       message.Nonce,
 			Origin:      message.Destination,
 			Destination: message.Origin,
 			HopLimit:    HopLimit,
 		}
 		gossiper.HandleSecureMessage(ack)
-
+		tunnelId.ACKsHandshake <- true
+		close(tunnelId.ACKsHandshake)
 	}
 }
 
-func (gossiper *Gossiper) handleACK(message *util.SecureMessage) {
+/*
+ *	handleACKClientFinished handles the messages of the handshake. Notice that gossiper.connections
+ *	must be locked at this point. Sends the pending messages.
+ */
+func (gossiper *Gossiper) handleACKClientFinished(message *util.SecureMessage) {
 	tunnelId := gossiper.connections.Conns[message.Origin]
+	tunnelId.ACKsHandshake <- true
+	close(tunnelId.ACKsHandshake)
 	tunnelId.NextPacket = util.Data
-	for _, msg := range tunnelId.Pending {
-		gossiper.sendSecureMessage(msg, tunnelId)
+	for _, bytes := range tunnelId.Pending {
+		gossiper.sendSecureMessage(bytes, tunnelId, message.Origin)
 	}
 }
 
+/*
+ *	handleData handles the Data secure message and forwards it to the upper layer (either PrivateMessage or TorMessage).
+ *	It sends an acknowledgment to the source.
+ */
 func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
-
 
 	tunnelId := gossiper.connections.Conns[message.Origin]
 	plaintext := util.DecryptGCM(message.EncryptedData, message.GCMNonce, tunnelId.SharedKey)
@@ -355,25 +408,61 @@ func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
 	receivedCTRBytes := plaintext[32:36]
 	receivedCTR := binary.LittleEndian.Uint32(receivedCTRBytes)
 
-	if _,ok := tunnelId.CTRSet[receivedCTR]; ok || !util.Equals(receivedNonce, message.Nonce){
-		return
-	}else{
-		tunnelId.CTRSet[receivedCTR] = true
+	if Equals(receivedNonce, message.Nonce) && message.CTR == receivedCTR {
+
+		ack := &util.SecureMessage{
+			MessageType: util.ACK,
+			Origin:      gossiper.Name,
+			Destination: message.Origin,
+			HopLimit:    util.HopLimit,
+			CTR:         message.CTR,
+		}
+		gossiper.HandleSecureMessage(ack)
+
+		if message.CTR == tunnelId.NextID {
+			gossiper.deliver(message, tunnelId)
+
+			if len(tunnelId.ToDeliver) > 0 {
+				for i, secMsg := range tunnelId.ToDeliver[1:] {
+					if secMsg == nil {
+						tunnelId.ToDeliver = tunnelId.ToDeliver[i+1:]
+						return
+					}
+					gossiper.deliver(secMsg, tunnelId)
+				}
+			}
+
+		} else if message.CTR > tunnelId.NextID {
+			lastIndex := tunnelId.NextID + uint32(len(tunnelId.ToDeliver)) - 1
+
+			if message.CTR < lastIndex {
+				if el := tunnelId.ToDeliver[message.CTR]; el == nil {
+					tunnelId.ToDeliver[message.CTR] = message
+				}
+			} else {
+				toAdd := message.CTR - lastIndex
+
+				for i := uint32(0); i < toAdd; i++ {
+					tunnelId.ToDeliver = append(tunnelId.ToDeliver, nil)
+				}
+				tunnelId.ToDeliver[message.CTR-tunnelId.NextID] = message
+			}
+		}
 	}
+}
 
-	receivedText := plaintext[36:]
-
-	privMessage := &util.PrivateMessage{
-		Origin:      message.Origin,
-		ID:          0,
-		Text:        string(receivedText),
-		Destination: message.Destination,
-		HopLimit:    message.HopLimit,
+/*
+ *	deliver delivers the message to the upper layer. No further check is done, hence the message must have been already
+ * 	processed by handleData before the use of this function.
+ */
+func (gossiper *Gossiper) deliver(message *util.SecureMessage, tunnelId *TunnelIdentifier) {
+	tunnelId.NextID += 1
+	plaintext := util.DecryptGCM(message.EncryptedData, message.GCMNonce, tunnelId.SharedKey)
+	if gossiper.tor {
+		gossiper.secureToTor(plaintext[36:], message.Origin)
+	} else {
+		gossiper.secureToPrivate(plaintext[36:], message.Origin)
 	}
-
-	gossiper.handlePrivatePacket(&util.GossipPacket{
-		Private: privMessage,
-	})
 }
 
 /*
@@ -415,29 +504,120 @@ func (gossiper *Gossiper) checkFinishedMessages(ciphertext, nonce []byte, tunnel
 }
 
 /*
- *	setTimeout starts a new timer for the connection that was previously opened.
+ *	setExpirationTimeout starts a new timer for the connection that was previously opened.
  *	When the timer expires the connection is closed and when a new message arrives the timer is reset.
  *
  * dest string is the other party of the connection.
  */
-func (gossiper *Gossiper) setTimeout(dest string, id *TunnelIdentifier) {
-	ticker := time.NewTicker(TimeoutDuration)
+func (gossiper *Gossiper) setExpirationTimeout(dest string, id *TunnelIdentifier) {
+	ticker := time.NewTicker(ExpirationDuration)
 	for {
 		select {
 		case <-ticker.C:
 			//time out, the connection expires.
-			ticker.Stop()
-			gossiper.connections.Lock()
-			close(id.TimeoutChan)
-			delete(gossiper.connections.Conns, dest)
-			gossiper.connections.Unlock()
 			fmt.Printf("EXPIRED connection with %s\n", dest)
+			ticker.Stop()
+			gossiper.killConnection(id, dest)
 			return
-		case <-id.TimeoutChan:
+		case reset := <-id.TimeoutChan:
 			//connection tunnel was used, reset the timer.
-			ticker = time.NewTicker(TimeoutDuration)
-
+			if reset {
+				ticker = time.NewTicker(ExpirationDuration)
+			} else {
+				ticker.Stop()
+				fmt.Printf("TOO MANY TIMEOUT connection with %s aborted\n", dest)
+				gossiper.killConnection(id, dest)
+				return
+			}
 		}
 
+	}
+}
+
+/*
+ *	killConnection shut downs a secure tunnel.
+ */
+func (gossiper *Gossiper) killConnection(id *TunnelIdentifier, dest string) {
+	gossiper.connections.Lock()
+	close(id.TimeoutChan)
+	delete(gossiper.connections.Conns, dest)
+	gossiper.connections.Unlock()
+
+}
+
+/*
+ *	startTimer starts a timer for each message. It starts with a value of TimeoutDuration seconds and each time it timeouts
+ *	the timer doubles. This can be done only 4 times then the connection is aborted. A channel is opened that is used when
+ *	an acknowledgment arrives to stop the timer.
+ */
+func (gossiper *Gossiper) startTimer(message *util.SecureMessage) {
+
+	gossiper.connections.Lock()
+	tunnelId := gossiper.connections.Conns[message.Destination]
+	ticker := time.NewTicker(tunnelId.TimeOut)
+	var ackChan chan bool
+	if message.MessageType < util.ChangeCipherSec {
+		tunnelId.ACKsHandshake = make(chan bool)
+		ackChan = tunnelId.ACKsHandshake
+	} else if message.MessageType < util.ACKClientFinished {
+		close(tunnelId.ACKsHandshake)
+		tunnelId.ACKsHandshake = make(chan bool)
+		ackChan = tunnelId.ACKsHandshake
+	} else {
+		tunnelId.ACKs[message.CTR] = make(chan bool)
+		ackChan = tunnelId.ACKs[message.CTR]
+	}
+	gossiper.connections.Unlock()
+
+	for {
+		select {
+		case <-ticker.C:
+
+			gossiper.connections.Lock()
+			tunnelId, ok := gossiper.connections.Conns[message.Destination]
+			if ok {
+				if message.MessageType == util.Data {
+					fmt.Printf("TIMEOUT %d\n", message.CTR)
+
+				} else {
+					fmt.Printf("TIMEOUT for %s\n", message.MessageType.String())
+				}
+
+				tunnelId.ConsecutiveTO += 1
+				if tunnelId.ConsecutiveTO > maxRetry {
+					tunnelId.TimeoutChan <- false
+					gossiper.connections.Unlock()
+					ticker.Stop()
+					return
+				}
+				tunnelId.TimeOut *= 2
+				gossiper.HandleSecureMessage(message)
+			}else{
+				//Connection was already aborted previously
+				ticker.Stop()
+				gossiper.connections.Unlock()
+				return
+			}
+			gossiper.connections.Unlock()
+		case <-ackChan:
+
+			ticker.Stop()
+			gossiper.connections.Lock()
+			tunnelId := gossiper.connections.Conns[message.Destination]
+			tunnelId.ConsecutiveTO = 0
+
+			if message.MessageType == util.Data {
+				fmt.Printf("ACK %d received\n", message.CTR)
+				delete(tunnelId.ACKs, message.CTR)
+				close(ackChan)
+				gossiper.connections.Unlock()
+				return
+
+			} else {
+				fmt.Printf("ACK for %s\n", message.MessageType.String())
+			}
+			gossiper.connections.Unlock()
+			return
+		}
 	}
 }

@@ -11,7 +11,7 @@ import (
 func (gossiper *Gossiper) readClientPacket() *util.Message {
 	connection := gossiper.ClientConn
 	var packet util.Message
-	packetBytes := make([]byte, util.MaxUDPSize + 2000)
+	packetBytes := make([]byte, util.MaxUDPSize+2000)
 	n, _, err := connection.ReadFromUDP(packetBytes)
 	util.CheckError(err)
 	errDecode := protobuf.Decode(packetBytes[:n], &packet)
@@ -46,7 +46,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 			if len(keywords) > 0 {
 				var searchPacket *util.GossipPacket
 				searchPacket = &util.GossipPacket{SearchRequest: &util.SearchRequest{
-					Origin: gossiper.Name,
+					Origin:   gossiper.Name,
 					Keywords: keywords,
 				}}
 				gossiper.lSearchMatches.Lock()
@@ -63,8 +63,8 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 					defer ticker.Stop()
 
 					for {
-						select{
-						case <- ticker.C:
+						select {
+						case <-ticker.C:
 							searchPacket.SearchRequest.Budget *= 2
 							if searchPacket.SearchRequest.Budget > maxBudget {
 								return
@@ -73,7 +73,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 							if gossiper.lSearchMatches.currNbFullMatch >= fullMatchThreshold {
 								gossiper.lSearchMatches.RUnlock()
 								return
-							}else {
+							} else {
 								gossiper.lSearchMatches.RUnlock()
 							}
 							go gossiper.handleSearchRequestPacket(searchPacket, nil)
@@ -111,7 +111,15 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 						gossiper.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
 					} else {
 						// private secure message
-						go gossiper.HandleClientSecureMessage(packet)
+						privateMsg := &util.PrivateMessage{
+							Origin:      gossiper.Name,
+							ID:          0,
+							Text:        packet.Text,
+							Destination: *packet.Destination,
+							HopLimit:    util.HopLimit,
+						}
+						go gossiper.privateToSecure(privateMsg)
+						gossiper.AddNewPrivateMessageForGUI(*packet.Destination, privateMsg)
 						//TODO: add something for the GUI?
 					}
 				}
@@ -120,7 +128,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
 				go gossiper.rumormonger("", "", &packetToSend, false)
 			}
-		}else if packet.Request != nil {
+		} else if packet.Request != nil {
 			if packet.Destination == nil {
 				// download previous search requested file
 				destination := ""
@@ -130,7 +138,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				// request file with specified destination
 				go gossiper.startDownload(packet)
 			}
-		}else {
+		} else {
 			// index file
 			go gossiper.IndexFile(*packet.File)
 		}

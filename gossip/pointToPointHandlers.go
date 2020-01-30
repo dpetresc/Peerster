@@ -1,8 +1,10 @@
 package gossip
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
 )
@@ -201,4 +203,20 @@ func (gossiper *Gossiper) handleSearchReplyPacket(packet *util.GossipPacket) {
 			}
 		}
 	}
+}
+
+func (gossiper *Gossiper) secureToPrivate(bytesData []byte, source string) {
+	privateMessage := &util.PrivateMessage{}
+	r := bytes.NewReader(bytesData)
+	err := json.NewDecoder(r).Decode(privateMessage)
+	util.CheckError(err)
+	gossiper.handlePrivatePacket(&util.GossipPacket{
+		Private: privateMessage,
+	})
+}
+
+func (gossiper *Gossiper) privateToSecure(privateMessage *util.PrivateMessage){
+	bytesData,err := json.Marshal(privateMessage)
+	util.CheckError(err)
+	gossiper.SecureBytesConsumer(bytesData, privateMessage.Destination)
 }
