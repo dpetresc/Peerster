@@ -23,6 +23,7 @@ type LockAllMsg struct {
 
 type LockLastPrivateMsg struct {
 	LastPrivateMsg map[string][]*util.PrivateMessage
+	LastPrivateMsgTor map[uint32][]*util.PrivateMessage
 	sync.RWMutex
 }
 
@@ -72,13 +73,17 @@ type Gossiper struct {
 	lSearchMatches       *LockSearchMatches
 
 	// crypto
-	secure     bool
-	lConsensus *LockConsensus
+	tor         bool
+	secure      bool
+	lConsensus  *LockConsensus
 	connections *Connections
+
+	// Tor
+	lCircuits *LockCircuits
 }
 
 func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEntropy int,
-	rtimer int, secure bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
+	rtimer int, tor bool, secure bool, privateKey *rsa.PrivateKey, CAKey *rsa.PublicKey) *Gossiper {
 	udpAddr, err := net.ResolveUDPAddr("udp4", address)
 	util.CheckError(err)
 	udpConn, err := net.ListenUDP("udp4", udpAddr)
@@ -104,6 +109,7 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 
 	lockLastPrivateMsg := LockLastPrivateMsg{
 		LastPrivateMsg: make(map[string][]*util.PrivateMessage),
+		LastPrivateMsgTor: make(map[uint32][]*util.PrivateMessage),
 	}
 
 	acks := make(map[string]map[Ack]chan util.StatusPacket)
@@ -143,7 +149,8 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 
 	var lConsensus *LockConsensus
-	if secure {
+	var lCircuits *LockCircuits
+	if tor || secure {
 		lConsensus = &LockConsensus{
 			CAKey:           CAKey,
 			identity:        name,
@@ -151,9 +158,16 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 			nodesPublicKeys: nil,
 			RWMutex:         sync.RWMutex{},
 		}
-		lConsensus.subscribeToConsensus()
+		lConsensus.sendDescriptorToConsensus()
+
+		lCircuits = &LockCircuits{
+			circuits:         make(map[uint32]*Circuit),
+			initiatedCircuit: make(map[string]*InitiatedCircuit),
+			RWMutex:          sync.RWMutex{},
+		}
 	} else {
 		lConsensus = nil
+		lCircuits = nil
 	}
 
 	return &Gossiper{
@@ -177,18 +191,20 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		lAllChunks:           &lAllChunks,
 		lRecentSearchRequest: &lRecentSearchRequest,
 		lSearchMatches:       &lSearchMatches,
+		tor:                  tor,
 		secure:               secure,
 		lConsensus:           lConsensus,
 		connections:          NewConnections(),
+		lCircuits:            lCircuits,
 	}
 }
 
-func (consensus *LockConsensus) subscribeToConsensus() {
+func (consensus *LockConsensus) sendDescriptorToConsensus() {
 	consensus.RLock()
 	publicKey := x509.MarshalPKCS1PublicKey(&consensus.privateKey.PublicKey)
 	identity := []byte(consensus.identity)
 	node := append(publicKey[:], identity[:]...)
-	signature := util.SignByteMessage(node, consensus.privateKey)
+	signature := util.SignRSA(node, consensus.privateKey)
 	consensus.RUnlock()
 
 	descriptor := Descriptor{
@@ -198,14 +214,26 @@ func (consensus *LockConsensus) subscribeToConsensus() {
 	}
 
 	buf := new(bytes.Buffer)
-	json.NewEncoder(buf).Encode(descriptor)
-	r, err := http.Post("http://" + util.CAAddress + "/subscription", "application/json; charset=utf-8", buf)
+	err := json.NewEncoder(buf).Encode(descriptor)
+	util.CheckError(err)
+	r, err := http.Post("http://"+util.CAAddress+"/descriptor", "application/json; charset=utf-8", buf)
 	util.CheckError(err)
 	util.CheckHttpError(r)
 }
 
+/*
+ * 	checkMyPublicKeyInConsensus checks if the consensus has my "correct" public key (no impersonation)
+ */
+func (gossiper *Gossiper) checkMyPublicKeyInConsensus() {
+	mConsensusPublicKey := gossiper.lConsensus.nodesPublicKeys[gossiper.Name]
+	if mConsensusPublicKey.N != gossiper.lConsensus.privateKey.PublicKey.N ||
+		mConsensusPublicKey.E != gossiper.lConsensus.privateKey.PublicKey.E {
+		util.CheckError(errors.New("Consensus has wrong public key !"))
+	}
+}
+
 func (gossiper *Gossiper) getConsensus() {
-	r, err := http.Get("http://" + util.CAAddress + "/consensus")
+	r, err := http.Get("http://" + util.CAAddress + "/consensus" + "?node=" + gossiper.Name)
 	util.CheckError(err)
 	util.CheckHttpError(r)
 	var CAResponse CAConsensus
@@ -214,14 +242,44 @@ func (gossiper *Gossiper) getConsensus() {
 	r.Body.Close()
 
 	nodesIDPublicKeys, err := json.Marshal(CAResponse.NodesIDPublicKeys)
+	gossiper.lCircuits.Lock()
 	gossiper.lConsensus.Lock()
-	if !util.VerifySignature(nodesIDPublicKeys, CAResponse.Signature, gossiper.lConsensus.CAKey) {
+	if !util.VerifyRSASignature(nodesIDPublicKeys, CAResponse.Signature, gossiper.lConsensus.CAKey) {
 		err = errors.New("CA corrupted")
 		util.CheckError(err)
+		gossiper.lConsensus.Unlock()
+		gossiper.lCircuits.Lock()
 		return
 	}
 	gossiper.lConsensus.nodesPublicKeys = CAResponse.NodesIDPublicKeys
+
+	gossiper.checkMyPublicKeyInConsensus()
+
+	gossiper.checkCircuitsWithNewConsensus()
+
 	gossiper.lConsensus.Unlock()
+	gossiper.lCircuits.Lock()
+}
+
+/*
+ * checkCircuitsWithNewConsensus checks if we have circuits with nodes that aren't in the consensus anymore
+ *  if this is the case initiateNewCircuit
+*/
+func (gossiper *Gossiper) checkCircuitsWithNewConsensus() {
+	for dest, c := range gossiper.lCircuits.initiatedCircuit {
+		if _, ok := gossiper.lConsensus.nodesPublicKeys[dest]; !ok {
+			delete(gossiper.lCircuits.initiatedCircuit, dest)
+			return
+		}
+		if _, ok := gossiper.lConsensus.nodesPublicKeys[c.GuardNode.Identity]; !ok {
+			gossiper.changeCircuitPath(c, dest)
+			return
+		}
+		if _, ok := gossiper.lConsensus.nodesPublicKeys[c.MiddleNode.Identity]; !ok {
+			gossiper.changeCircuitPath(c, dest)
+			return
+		}
+	}
 }
 
 func (gossiper *Gossiper) Consensus() {
@@ -313,15 +371,3 @@ func (gossiper *Gossiper) createNewPacketToSend(text string, routeRumor bool) ut
 	gossiper.lAllMsg.Unlock()
 	return packetToSend
 }
-
-
-
-
-
-
-
-
-
-
-
-

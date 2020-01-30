@@ -16,6 +16,7 @@ var simple bool
 var antiEntropy int
 var rtimer int
 var gui bool
+var tor bool
 var secure bool
 
 var clientAddr string
@@ -33,7 +34,9 @@ func init() {
 	flag.BoolVar(&gui, "gui", false, "run gossip with gui")
 
 	// crypto
-	flag.BoolVar(&secure, "secure", false, "secure flag")
+	flag.BoolVar(&tor, "tor", false, "tor flag")
+	// when tor flag is not present
+	flag.BoolVar(&secure, "secure", false, "secure private message flag")
 
 	flag.Parse()
 }
@@ -45,15 +48,15 @@ func main() {
 
 	var privateKey *rsa.PrivateKey
 	var CAKey *rsa.PublicKey
-	if secure {
+	if tor || secure {
 		privateKey = util.GetPrivateKey(util.KeysFolderPath, name)
 		CAKey = util.GetCAKey(util.KeysFolderPath)
 	}
 
 	mGossiper = gossip.NewGossiper(clientAddr, gossipAddr, name, peers, simple, antiEntropy,
-		rtimer, secure, privateKey, CAKey)
+		rtimer, tor, secure, privateKey, CAKey)
 
-	if secure {
+	if tor || secure {
 		go func() {
 			mGossiper.Consensus()
 		}()

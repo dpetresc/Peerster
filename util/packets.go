@@ -15,6 +15,8 @@ type Message struct {
 	Keywords    *string
 	Budget      *uint64
 	Secure      bool
+	Anonyme     bool
+	CID         *uint32
 }
 
 func (clientMessage *Message) PrintClientMessage() {
@@ -151,16 +153,17 @@ func (searchResult *SearchResult) PrintSearchMatch(origin string) {
 /*
  *	MessageType represents the different type of messages that can be exchanged during a secure communication.
  *
- *	ClientHello is sent by the node that initiates the communication (A). It contains a nonce of 32 bytes that identifies
+ *	1) ClientHello is sent by the node that initiates the communication (A). It contains a nonce of 32 bytes that identifies
  *	the communication.
- *	ServerHello is sent by the node reached by the initiator (B).It contains a 32 bytes nonce (the
+ *	2) ServerHello is sent by the node reached by the initiator (B).It contains a 32 bytes nonce (the
  *	one it previously received), its part of the Diffie-Hellman protocol and the signature of the Diffie-Hellman protocol.
- *	ChangeCipher is sent by A and contains its part of the Diffie-Hellman protocol and the signature
+ *	3) ChangeCipherSec is sent by A and contains its part of the Diffie-Hellman protocol and the signature
  *	of the Diffie-Hellman protocol.
- * 	ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
- *	ClientFinished is sent by A and contains the encrypted handshake
+ * 	4) ServerFinished is sent by B and contains the encrypted handshake (i.e., Enc(ClientHello||ServerHello||ChangeCipherSec))
+ *	5) ClientFinished is sent by A and contains the encrypted handshake
  *	(i.e., Enc(ClientHello||ServerHello||ChangeCipherSec||ServerFinished))
- *	Data are the secure messages
+ *  6) ACK
+ *	7)+ Payload are the secure messages
  */
 type MessageType uint32
 
@@ -174,8 +177,16 @@ const (
 	Data
 )
 
+type Flag uint32
+
+const (
+	Private Flag = iota
+	Tor
+)
+
 type SecureMessage struct {
 	MessageType   MessageType
+	Flag          Flag
 	Nonce         []byte
 	DHPublic      []byte
 	DHSignature   []byte
@@ -186,8 +197,8 @@ type SecureMessage struct {
 	HopLimit      uint32
 }
 
-func (secMsg *SecureMessage) Bytes() []byte{
-	bytes := make([]byte,0)
+func (secMsg *SecureMessage) Bytes() []byte {
+	bytes := make([]byte, 0)
 	bytes = append(bytes, []byte(strconv.Itoa(int(secMsg.MessageType)))...)
 	bytes = append(bytes, secMsg.Nonce...)
 	bytes = append(bytes, secMsg.DHPublic...)
@@ -201,7 +212,43 @@ func (secMsg *SecureMessage) Bytes() []byte{
 
 }
 
-func (secMsg *SecureMessage)  String() string{
+func (secMsg *SecureMessage) String() string {
 	return fmt.Sprintf("TYPE: %d\nNonce: %x\nDHPublic: %x\nDHSignature: %x\nEncryptedData: %x\nGCMNonce: %x\nOrigin: %s\nDestination: %s\nHopLimit: %d\n",
 		secMsg.MessageType, secMsg.Nonce, secMsg.DHPublic, secMsg.DHSignature, secMsg.EncryptedData, secMsg.GCMNonce, secMsg.Origin, secMsg.Destination, secMsg.HopLimit)
+}
+
+/////////////////////////////////////TOR///////////////////////////////////////////////
+type TorFlag uint32
+
+const (
+	Create TorFlag = iota
+	Extend
+	Relay
+	TorData
+)
+
+type TorMessageType uint32
+
+const (
+	Request TorMessageType = iota
+	Reply
+)
+
+/*
+ *	CircuitID: All flags. The id of the Tor circuit
+ *	NextHOP: Extend flag. The next node in Tor, nil if you are the final destination
+ *	DHPublic: Create or Extend flag. The DH public part (encrypted in request and in clear in response)
+ *	DHSharedHash: Create or Extend flag. The hash of the shared key (in response)
+ *	Nonce: Relay flag. Used for encryption when the payload is encrypted
+ *	Payload: Relay or TorData. The encrypted Tor message, or the data if destination
+ */
+type TorMessage struct {
+	CircuitID    uint32
+	Flag         TorFlag
+	Type         TorMessageType
+	NextHop      string
+	DHPublic     []byte
+	DHSharedHash []byte
+	Nonce        []byte
+	Payload      []byte
 }

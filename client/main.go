@@ -18,6 +18,8 @@ var request string
 var keywords string
 var budget int64
 var secure bool
+var cID int64
+var anonyme bool
 
 var clientAddrStr string
 
@@ -30,6 +32,9 @@ func init() {
 	flag.StringVar(&keywords, "keywords", "", "keywords for the file search")
 	flag.Int64Var(&budget, "budget", -1, "budget for the file search (optional)")
 	flag.BoolVar(&secure, "sec", false, "option used to send encrypted private messages")
+	// if anonyme is false the destination knows who sent the message
+	flag.Int64Var(&cID, "circuit id", -1, "used when we reply to a Tor message")
+	flag.BoolVar(&anonyme, "anonyme", false, "option used to send remain anonyme while using Tor")
 
 	flag.Parse()
 }
@@ -125,10 +130,15 @@ func main() {
 		Request: &requestBytes,
 		Keywords: &keywords,
 		Secure: secure,
+		Anonyme: anonyme,
 	}
 	if budget != -1 {
 		uintBudget := uint64(budget)
 		packetToSend.Budget = &uintBudget
+	}
+	if cID != -1 {
+		uintCID := uint32(cID)
+		packetToSend.CID = &uintCID
 	}
 
 	dealWithEmptyField(&packetToSend, requestBytes)

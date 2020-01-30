@@ -89,24 +89,32 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 				fmt.Println("Empty keywords")
 			}
 		} else if packet.Text != "" {
-			if packet.Destination != nil && !packet.Secure {
+			if packet.Destination != nil {
 				// private message
-				packetToSend := &util.GossipPacket{Private: &util.PrivateMessage{
-					Origin:      gossiper.Name,
-					ID:          0,
-					Text:        packet.Text,
-					Destination: *packet.Destination,
-					HopLimit:    util.HopLimit,
-				}}
-				go gossiper.handlePrivatePacket(packetToSend)
+				if gossiper.tor {
+					// private secure message
+					go gossiper.HandleClientTorMessage(packet)
+					//TODO: add something for the GUI?
+				} else {
+					if !packet.Secure {
+						// non secure
+						packetToSend := &util.GossipPacket{Private: &util.PrivateMessage{
+							Origin:      gossiper.Name,
+							ID:          0,
+							Text:        packet.Text,
+							Destination: *packet.Destination,
+							HopLimit:    util.HopLimit,
+						}}
+						go gossiper.handlePrivatePacket(packetToSend)
 
-				// FOR THE GUI
-				gossiper.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
-			}else if packet.Destination != nil && packet.Secure {
-				go gossiper.HandleClientSecureMessage(packet)
-
-				//TODO: add something for the GUI?
-
+						// FOR THE GUI
+						gossiper.AddNewPrivateMessageForGUI(*packet.Destination, packetToSend.Private)
+					} else {
+						// private secure message
+						go gossiper.HandleClientSecureMessage(packet)
+						//TODO: add something for the GUI?
+					}
+				}
 			} else {
 				// "public" message
 				packetToSend := gossiper.createNewPacketToSend(packet.Text, false)
