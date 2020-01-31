@@ -9,9 +9,10 @@ import (
 	"sync"
 )
 
-type ConnectionsToHS struct{
+type ConnectionsToHS struct {
 	sync.RWMutex
-	Connections map[string]*ConnectionToHS
+	// onion address => connection with the hidden service
+	Connections   map[string]*ConnectionToHS
 	CookiesToAddr map[uint64]string
 }
 
@@ -22,19 +23,19 @@ type ConnectionToHS struct {
 	SharedKey []byte
 }
 
-type ClientServerPair struct{
+type ClientServerPair struct {
 	Client uint32
 	Server uint32
 }
 
-func (cl *ClientServerPair) Other(id uint32)  uint32{
-	if cl.Client == id{
+func (cl *ClientServerPair) Other(id uint32) uint32 {
+	if cl.Client == id {
 		return cl.Server
-	}else if cl.Server == id{
+	} else if cl.Server == id {
 		return cl.Client
-	}else if cl.Client == cl.Server && cl.Client == id{
+	} else if cl.Client == cl.Server && cl.Client == id {
 		return cl.Client
-	}else{
+	} else {
 		panic(errors.New("id is not in the pair"))
 	}
 }
@@ -44,17 +45,17 @@ type Bridges struct {
 	ClientServerPairs map[uint64]*ClientServerPair //cookie to circuit id pairs
 }
 
-func NewBridges() *Bridges{
+func NewBridges() *Bridges {
 	return &Bridges{
 		RWMutex:           sync.RWMutex{},
 		ClientServerPairs: make(map[uint64]*ClientServerPair),
 	}
 }
 
-func NewConnectionsToHS() *ConnectionsToHS{
+func NewConnectionsToHS() *ConnectionsToHS {
 	return &ConnectionsToHS{
-		RWMutex:     sync.RWMutex{},
-		Connections: make(map[string]*ConnectionToHS),
+		RWMutex:       sync.RWMutex{},
+		Connections:   make(map[string]*ConnectionToHS),
 		CookiesToAddr: make(map[uint64]string),
 	}
 }
@@ -65,7 +66,7 @@ func NewConnectionsToHS() *ConnectionsToHS{
 func (gossiper *Gossiper) JoinHS(onionAddr string) {
 	var descriptor *HSDescriptor
 	gossiper.lHS.RLock()
-	if d,ok := gossiper.lHS.HashMap[onionAddr]; ok {
+	if d, ok := gossiper.lHS.HashMap[onionAddr]; ok {
 		descriptor = d
 	} else {
 		gossiper.lHS.RUnlock()
@@ -73,32 +74,36 @@ func (gossiper *Gossiper) JoinHS(onionAddr string) {
 	}
 	gossiper.lHS.RUnlock()
 
+	gossiper.lConsensus.Lock()
+	gossiper.lCircuits.Lock()
 	gossiper.connectionsToHS.Lock()
-	defer gossiper.connectionsToHS.Unlock()
-	if _,ok := gossiper.connectionsToHS.Connections[onionAddr]; !ok{
+	if _, ok := gossiper.connectionsToHS.Connections[onionAddr]; !ok {
 		newConn := &ConnectionToHS{
 			Cookie: rand.Uint64(),
 		}
 		gossiper.connectionsToHS.CookiesToAddr[newConn.Cookie] = onionAddr
 
-		gossiper.lConsensus.RLock()
 		rdvPoint := gossiper.selectRandomNodeFromConsensus(descriptor.IPIdentity)
-		gossiper.lConsensus.RUnlock()
-		newConn.RDVPoint = rdvPoint
+		if rdvPoint != "" {
+			newConn.RDVPoint = rdvPoint
 
-		gossiper.connectionsToHS.Connections[onionAddr] = newConn
+			gossiper.connectionsToHS.Connections[onionAddr] = newConn
 
-		privateMsg := &util.PrivateMessage{
-			HsFlag:      util.Bridge,
-			IPIdentity: descriptor.IPIdentity,
-			Cookie:      newConn.Cookie,
+			privateMsg := &util.PrivateMessage{
+				HsFlag:     util.Bridge,
+				IPIdentity: descriptor.IPIdentity,
+				Cookie:     newConn.Cookie,
+				OnionAddr:  onionAddr,
+			}
+			gossiper.HandlePrivateMessageToSend(rdvPoint, privateMsg)
+		} else {
+			fmt.Println("Consensus does not have enough nodes, retry later")
 		}
 
-		gossiper.HandlePrivateMessageToSend(rdvPoint, privateMsg)
-
-	}else{
+	} else {
 		fmt.Printf("CONNECTION to %s already exists\n", onionAddr)
 	}
-
-
+	gossiper.connectionsToHS.Unlock()
+	gossiper.lCircuits.Unlock()
+	gossiper.lConsensus.Unlock()
 }

@@ -223,9 +223,7 @@ func (gossiper *Gossiper) HandleTorCreateRequest(torMessage *util.TorMessage, so
 	// we haven't already received the Create tor message - ignore it otherwise
 	if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; !ok {
 		// decrpyt public DH key
-		gossiper.lConsensus.RLock()
 		publicDHReceived := util.DecryptRSA(torMessage.DHPublic, gossiper.lConsensus.privateKey)
-		gossiper.lConsensus.RUnlock()
 
 		// create DH shared key
 		privateDH, publicDH := util.CreateDHPartialKey()

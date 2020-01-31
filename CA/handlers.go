@@ -83,12 +83,12 @@ func HSConsensusHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		enableCors(&w)
-		mHSHashmap.RLock()
+		mHSHashmap.Lock()
 		jsonHSConsensus, err := json.Marshal(mHSHashmap)
 		if len(mHSHashmap.HS) > 0 {
 			fmt.Println(mHSHashmap)
 		}
-		mHSHashmap.RUnlock()
+		mHSHashmap.Unlock()
 		util.CheckError(err)
 		w.WriteHeader(http.StatusOK)
 		w.Write(jsonHSConsensus)
@@ -119,9 +119,7 @@ func HSDescriptorHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		mHSHashmap.Lock()
-		if _, ok := mHSHashmap.HS[hsDescriptor.OnionAddress]; !ok {
-			mHSHashmap.HS[hsDescriptor.OnionAddress] = &hsDescriptor
-		}
+		mHSHashmap.HS[hsDescriptor.OnionAddress] = &hsDescriptor
 		mHSHashmap.signHSHashMap()
 		mHSHashmap.Unlock()
 	}

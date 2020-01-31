@@ -92,6 +92,8 @@ type HSFlag uint32
 
 const (
 	None HSFlag = iota
+	IPRequest
+	KeepAlive
 	Bridge
 	Introduce
 	NewCo
@@ -112,9 +114,11 @@ type PrivateMessage struct {
 	Text        string
 	Destination string
 	HopLimit    uint32
+
 	//HS flags
 	HsFlag      HSFlag
 	RDVPoint    string
+	OnionAddr	string
 	IPIdentity  string
 	Cookie      uint64
 	PublicDH    []byte

@@ -60,6 +60,7 @@ func (gossiper *Gossiper) secureToTor(bytesData []byte, source string) {
  *	source	name of the secure source
  */
 func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source string) {
+	gossiper.lConsensus.Lock()
 	gossiper.lCircuits.Lock()
 	switch torMessage.Flag {
 	case util.Create:
@@ -104,4 +105,5 @@ func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source 
 		}
 	}
 	gossiper.lCircuits.Unlock()
+	gossiper.lConsensus.Unlock()
 }

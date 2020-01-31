@@ -12,6 +12,7 @@ func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) 
 	var packet util.GossipPacket
 	packetBytes := make([]byte, util.MaxUDPSize + 2000)
 	n, sourceAddr, err := connection.ReadFromUDP(packetBytes)
+	util.CheckError(err)
 	// In case simple flag is set, we add manually the RelayPeerAddr of the packets afterwards
 	if !gossiper.simple {
 		if sourceAddr != gossiper.Address {
@@ -20,7 +21,6 @@ func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) 
 			gossiper.Peers.Unlock()
 		}
 	}
-	util.CheckError(err)
 	errDecode := protobuf.Decode(packetBytes[:n], &packet)
 	util.CheckError(errDecode)
 

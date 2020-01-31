@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 type HSDescriptor struct {
@@ -33,15 +34,21 @@ type LockHS struct {
 	MPrivateKeys map[string]*rsa.PrivateKey
 	// consensus services : onion address => public key
 	HashMap map[string]*HSDescriptor
+
+	// if this node is an IP or the HS node
+	// onion addr to corresponding circuit id
+	OnionAddrToCircuit map[string]uint32
+
 	sync.RWMutex
 }
 
 type HSConnections struct {
 	sync.RWMutex
-	hsCos map[uint64]*HSConnetion
+	hsCos map[uint64]*HSConnection
 }
 
-type HSConnetion struct{
+type HSConnection struct{
+	OnionAddr string
 	SharedKey []byte
 	RDVPoint string
 }
@@ -49,7 +56,7 @@ type HSConnetion struct{
 func NewHSConnections() *HSConnections{
 	return &HSConnections{
 		RWMutex:           sync.RWMutex{},
-		hsCos: make(map[uint64]*HSConnetion),
+		hsCos: make(map[uint64]*HSConnection),
 	}
 }
 
@@ -132,6 +139,52 @@ func (gossiper *Gossiper) createHS(packet *util.Message) {
 	gossiper.lHS.Unlock()
 	hsDescriptor.sendHSDescriptorToConsensus()
 
-	// TODO
+	// open connection with IP
+	privateMessage := &util.PrivateMessage{
+		Origin:      "",
+		ID:          0,
+		Text:        "",
+		Destination: "",
+		HopLimit:    0,
+		HsFlag:      util.IPRequest,
+		RDVPoint:    "",
+		OnionAddr:   onionAddr,
+		IPIdentity:  "",
+		Cookie:      0,
+		PublicDH:    nil,
+		SignatureDH: nil,
+	}
+	gossiper.HandlePrivateMessageToSend(ip, privateMessage)
+
 	// Keep alive
+	go gossiper.keepAlive(ip)
+}
+
+func (gossiper *Gossiper) keepAlive(ip string) {
+	ticker := time.NewTicker(time.Duration((torTimeoutCircuits-1) * time.Minute))
+	for {
+		select {
+		case <-ticker.C:
+			gossiper.lConsensus.Lock()
+			gossiper.lCircuits.Lock()
+			// open connection with IP
+			privateMessage := &util.PrivateMessage{
+				Origin:      "",
+				ID:          0,
+				Text:        "",
+				Destination: "",
+				HopLimit:    0,
+				HsFlag:      util.KeepAlive,
+				RDVPoint:    "",
+				OnionAddr:   "",
+				IPIdentity:  "",
+				Cookie:      0,
+				PublicDH:    nil,
+				SignatureDH: nil,
+			}
+			gossiper.HandlePrivateMessageToSend(ip, privateMessage)
+			gossiper.lConsensus.Unlock()
+			gossiper.lCircuits.Unlock()
+		}
+	}
 }

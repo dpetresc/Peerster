@@ -82,7 +82,7 @@ type Gossiper struct {
 	lCircuits *LockCircuits
 
 	// HS
-	lHS *LockHS
+	lHS             *LockHS
 	connectionsToHS *ConnectionsToHS
 	bridges         *Bridges
 	hsCo            *HSConnections
@@ -177,9 +177,10 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 	}
 
 	lHS := &LockHS{
-		MPrivateKeys: make(map[string]*rsa.PrivateKey),
-		HashMap:      make(map[string]*HSDescriptor),
-		RWMutex:      sync.RWMutex{},
+		MPrivateKeys:       make(map[string]*rsa.PrivateKey),
+		HashMap:            make(map[string]*HSDescriptor),
+		OnionAddrToCircuit: make(map[string]uint32),
+		RWMutex:            sync.RWMutex{},
 	}
 
 	return &Gossiper{
@@ -209,9 +210,9 @@ func NewGossiper(clientAddr, address, name, peersStr string, simple bool, antiEn
 		connections:          NewConnections(),
 		lCircuits:            lCircuits,
 		lHS:                  lHS,
-		connectionsToHS: NewConnectionsToHS(),
-		bridges: NewBridges(),
-		hsCo: NewHSConnections(),
+		connectionsToHS:      NewConnectionsToHS(),
+		bridges:              NewBridges(),
+		hsCo:                 NewHSConnections(),
 	}
 }
 
@@ -295,6 +296,8 @@ func (gossiper *Gossiper) getConsensus() {
 	gossiper.checkMyPublicKeyInConsensus()
 
 	gossiper.checkCircuitsWithNewConsensus()
+
+	// TODO also check ip
 
 	gossiper.lConsensus.Unlock()
 	gossiper.lCircuits.Unlock()
