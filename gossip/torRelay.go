@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/dpetresc/Peerster/util"
+	"io/ioutil"
+	"strings"
 )
 
 func (gossiper *Gossiper) encryptDataInRelay(data []byte, key []byte,
@@ -83,7 +85,7 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 					gossiper.bridges.Unlock()
 
 					fmt.Println(privateMessage.Cookie)
-					newPrivMsg := &util.PrivateMessage {
+					newPrivMsg := &util.PrivateMessage{
 						HsFlag:    util.Introduce,
 						RDVPoint:  gossiper.Name,
 						Cookie:    privateMessage.Cookie,
@@ -121,7 +123,7 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 					}
 					gossiper.bridges.Unlock()
 					//fmt.Println("Server")
-				} else if privateMessage.HsFlag == util.ClientDHFwd || privateMessage.HsFlag == util.ServerDHFwd || privateMessage.HsFlag == util.HTTPFwd {
+				} else if privateMessage.HsFlag == util.ClientDHFwd || privateMessage.HsFlag == util.ServerDHFwd || privateMessage.HsFlag == util.HTTPFwd || privateMessage.HsFlag == util.HTTPRepFwd {
 					//fmt.Println("FORWARD")
 					// RDV points receives a message that it must forward.
 					gossiper.bridges.Lock()
@@ -130,8 +132,10 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 							privateMessage.HsFlag = util.ClientDH
 						} else if privateMessage.HsFlag == util.ServerDHFwd {
 							privateMessage.HsFlag = util.ServerDH
-						} else {
+						} else if privateMessage.HsFlag == util.HTTPFwd {
 							privateMessage.HsFlag = util.HTTP
+						} else {
+							privateMessage.HsFlag = util.HTTPRep
 						}
 						gossiper.HandlePrivateMessageToReply(pair.Other(c.ID), privateMessage)
 					}
@@ -230,6 +234,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				gossiper.hsCo.hsCos[privateMessage.Cookie] = &HSConnection{
 					SharedKey: nil,
 					RDVPoint:  privateMessage.RDVPoint,
+					OnionAddr: privateMessage.OnionAddr,
 				}
 				gossiper.hsCo.Unlock()
 				gossiper.HandlePrivateMessageToSend(privateMessage.RDVPoint, newPrivMsg)
@@ -296,10 +301,50 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 						co := gossiper.connectionsToHS.Connections[onionAddr]
 						co.SharedKey = util.CreateDHSharedKey(privateMessage.PublicDH, co.PrivateDH)
 						fmt.Printf("CONNECTION to %s established\n", onionAddr)
+
+						encryption, nonce := util.EncryptGCM([]byte("GET "+privateMessage.OnionAddr), co.SharedKey)
+						newPrivMsg := &util.PrivateMessage{
+							HsFlag:        util.HTTPFwd,
+							Cookie:        privateMessage.Cookie,
+							OnionAddr:     privateMessage.OnionAddr,
+							GCMEncryption: encryption,
+							GCMNonce:      nonce,
+						}
+						gossiper.HandlePrivateMessageToSend(co.RDVPoint, newPrivMsg)
 					}
 					gossiper.lHS.RUnlock()
 				}
 				//fmt.Println("ServerDH")
+			} else if privateMessage.HsFlag == util.HTTP {
+				gossiper.hsCo.Lock()
+				if conn, ok := gossiper.hsCo.hsCos[privateMessage.Cookie]; ok {
+					plaintext := util.DecryptGCM(privateMessage.GCMEncryption, privateMessage.GCMNonce, conn.SharedKey)
+					getRequest := "GET " + conn.OnionAddr
+					if strings.Compare(string(plaintext), getRequest) == 0 {
+						file, err := ioutil.ReadFile(util.HSHTML)
+						util.CheckError(err)
+						encryption, nonce := util.EncryptGCM(file, conn.SharedKey)
+						newPrivMsg := &util.PrivateMessage{
+							HsFlag:        util.HTTPRepFwd,
+							Cookie:        privateMessage.Cookie,
+							OnionAddr:     privateMessage.OnionAddr,
+							GCMEncryption: encryption,
+							GCMNonce:      nonce,
+						}
+						gossiper.HandlePrivateMessageToSend(conn.RDVPoint, newPrivMsg)
+					}
+				}
+				gossiper.hsCo.Unlock()
+			} else if privateMessage.HsFlag == util.HTTPRep {
+				gossiper.connectionsToHS.Lock()
+				defer gossiper.connectionsToHS.Unlock()
+
+				if onionAddr, ok := gossiper.connectionsToHS.CookiesToAddr[privateMessage.Cookie]; ok {
+					co := gossiper.connectionsToHS.Connections[onionAddr]
+					plaintext := util.DecryptGCM(privateMessage.GCMEncryption, privateMessage.GCMNonce, co.SharedKey)
+					//html := string(plaintext)
+					// TODO
+				}
 			} else {
 				// "Normal" private message
 				//fmt.Println("ELSE")

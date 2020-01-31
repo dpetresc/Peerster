@@ -23,6 +23,8 @@ var CAAddress = "127.0.0.1:4343"
 var KeysFolderPath = "./_MyKeys/"
 var KeysHS = "./_HSKeys/"
 
+var HSHTML = "./_HS/index.html"
+
 // DH group used in all the Peerster crypto
 var DHGroupID = 0
 

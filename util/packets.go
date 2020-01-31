@@ -105,6 +105,8 @@ const (
 	ServerDH
 	HTTPFwd
 	HTTP
+	HTTPRepFwd
+	HTTPRep
 )
 
 /******************** PRIVATE MESSAGE ********************/
@@ -116,13 +118,15 @@ type PrivateMessage struct {
 	HopLimit    uint32
 
 	//HS flags
-	HsFlag      HSFlag
-	RDVPoint    string
-	OnionAddr	string
-	IPIdentity  string
-	Cookie      uint64
-	PublicDH    []byte
-	SignatureDH []byte
+	HsFlag        HSFlag
+	RDVPoint      string
+	OnionAddr     string
+	IPIdentity    string
+	Cookie        uint64
+	PublicDH      []byte
+	SignatureDH   []byte
+	GCMNonce      []byte
+	GCMEncryption []byte
 }
 
 func (peerMessage *PrivateMessage) PrintPrivateMessage() {
