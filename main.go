@@ -96,8 +96,11 @@ func main() {
 			http.HandleFunc("/node", NodesHandler)
 			http.HandleFunc("/identifier", IdentifiersHandler)
 			http.HandleFunc("/private", PrivateMessagesHandler)
+			http.HandleFunc("/privateTor", PrivateTorMessagesHandler)
 			http.HandleFunc("/file", FileHandler)
 			http.HandleFunc("/search", SearchHandler)
+			http.HandleFunc("/onionAddr", OnionAddrHandler)
+			http.HandleFunc("/htmlGetter", HTMLGetterHandler)
 			for {
 				err := http.ListenAndServe("localhost:8080", nil)
 				util.CheckError(err)

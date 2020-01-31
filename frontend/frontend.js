@@ -1,4 +1,5 @@
 let currentChat = "public"
+let cID = "nil"
 
 /****************************** GET ******************************/
 function getPeers() {
@@ -105,8 +106,8 @@ function getNodeIdentifiers() {
                                 document.getElementById("chat").innerText = "Public Chat"
                                 document.getElementById("sendMessage").placeholder = "Type your public message here"
 
-                                document.getElementById("fileRequest").placeholder = "Please first select a node for the request"
-                                document.getElementById("hashRequest").placeholder = "Please first select a node for the request"
+                                /*document.getElementById("fileRequest").placeholder = "Please first select a node for the request"
+                                document.getElementById("hashRequest").placeholder = "Please first select a node for the request"*/
 
                                 document.getElementById("private_" + x + "_messages").style.visibility = "collapse"
                                 document.getElementById("public_messages").style.visibility = "visible"
@@ -119,8 +120,8 @@ function getNodeIdentifiers() {
                                 document.getElementById("chat").innerHTML = "Private Chat" + "<br/>" + x
                                 document.getElementById("sendMessage").placeholder = "Type your private message for " + currentChat + " here"
 
-                                document.getElementById("fileRequest").placeholder = "Type the name of the downloaded file"
-                                document.getElementById("hashRequest").placeholder = "Type metahash of the file request for " + currentChat + " here"
+                                /*document.getElementById("fileRequest").placeholder = "Type the name of the downloaded file"
+                                document.getElementById("hashRequest").placeholder = "Type metahash of the file request for " + currentChat + " here"*/
 
                                 document.getElementById("public_messages").style.visibility = "collapse"
                                 document.getElementById("private_" + x + "_messages").style.visibility = "visible"
@@ -153,8 +154,94 @@ function getPrivateMessages() {
                             $("#private_" + x + "_messages").find("tbody").append(
                                 "<tr>" + "<th> From " + "<span style=\"font-weight:normal\">" +
                                 msg.Origin + "<\span>" + "</th>" +
-                                "<th> HOP-LIMIT " + "<span style=\"font-weight:normal\">" +
-                                msg.HopLimit + "<\span>" + "</th>" +
+                                "<th> Message " + "<span style=\"font-weight:normal\">" +
+                                msg.Text + "<\span>" + "</th>" +
+                                "</tr>"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function getCID(data){
+    if (data.length > 0) {
+        document.getElementById("knownCIDs").style.visibility = "visible";
+        var list = document.getElementById("cIDs")
+        var oldChildStyle = {}
+        while (list.hasChildNodes()) {
+            var oldChild = list.removeChild(list.lastChild);
+            oldChildStyle[oldChild.innerHTML] = oldChild.style
+        }
+        
+        for(const x of data) {
+                $("#cIDs").append(
+                    "<li id=\"cidentifier_" + x + "\"" + ">" +
+                    x +
+                    "</li>"
+                );
+                if (oldChildStyle[x] != undefined) {
+                    document.getElementById("cidentifier_" + x).style.color = oldChildStyle[x].color
+                    document.getElementById("cidentifier_" + x).style.fontWeight = oldChildStyle[x].fontWeight
+                } else {
+                    createTableIfNotExist(x)
+                }
+                $("#cidentifier_" + x).click(function () {
+                    if (cID === x.toString()) {
+                        // go back to public chat
+                        cID = "nil"
+                        document.getElementById("cidentifier_" + x).style.fontWeight = "normal"
+                        document.getElementById("chat").innerText = "Public Chat"
+                        document.getElementById("sendMessage").placeholder = "Type your public message here"
+    
+                        /*document.getElementById("fileRequest").placeholder = "Please first select a node for the request"
+                        document.getElementById("hashRequest").placeholder = "Please first select a node for the request"*/
+    
+                        document.getElementById("private_" + x + "_messages").style.visibility = "collapse"
+                        document.getElementById("public_messages").style.visibility = "visible"
+                    } else if (cID === "nil") {
+                        // change red color that notified new messages if necessary
+                        document.getElementById("cidentifier_" + x).style.color = "black"
+    
+                        cID = x.toString()
+                        document.getElementById("cidentifier_" + x).style.fontWeight = "bold"
+                        document.getElementById("chat").innerHTML = "Private Chat" + "<br/>" + x
+                        document.getElementById("sendMessage").placeholder = "Type your private message for " + cID + " here"
+    
+                        /*document.getElementById("fileRequest").placeholder = "Type the name of the downloaded file"
+                        document.getElementById("hashRequest").placeholder = "Type metahash of the file request for " + cID + " here"*/
+    
+                        document.getElementById("public_messages").style.visibility = "collapse"
+                        document.getElementById("private_" + x + "_messages").style.visibility = "visible"
+                    }
+                });
+            }
+
+    } 
+}
+
+function getTorPrivateMessages() {
+    $.ajax({
+        type: "GET",
+        url: "http://localhost:8080/privateTor",
+        dataType: 'json',
+        success: function (data, status, xhr) {
+            if (data != undefined) {
+                //console.log(data)
+                var keys = Object.keys(data)
+                getCID(keys)
+                for (const x of keys) {
+                    if (x != cID && data[x].length > 0) {
+                        document.getElementById("cidentifier_" + x).style.color = "red"
+                        document.getElementById("cidentifier_" + x).style.fontWeight = "bold"
+                    }
+                    for (let msg of data[x]) {
+                        if (verifyMessage(msg.Text)) {
+                            $("#private_" + x + "_messages").find("tbody").append(
+                                "<tr>" + "<th> From " + "<span style=\"font-weight:normal\">" +
+                                msg.Origin + "<\span>" + "</th>" +
                                 "<th> Message " + "<span style=\"font-weight:normal\">" +
                                 msg.Text + "<\span>" + "</th>" +
                                 "</tr>"
@@ -206,13 +293,21 @@ function addNode() {
 
 function sendMessage() {
     var newMessage = document.getElementById("sendMessage").value;
+    // Get anonymity
+    var checkBox = document.getElementById("anonymityCheck");
+    var messageType = "normal"
+    if (checkBox.checked == true) {
+        messageType = "anonyme"
+    }
     if (newMessage != "") {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/message",
             data: {
                 "value": newMessage,
-                "identifier": currentChat
+                "identifier": currentChat,
+                "messagetype": messageType,
+                "cid": cID
             },
             success: function (data, status, xhr) {
                 document.getElementById("sendMessage").value = '';
@@ -223,8 +318,44 @@ function sendMessage() {
     }
 }
 
+function addrRequest() {
+    var onionAddr = document.getElementById("onionAddrRequest").value;
+    if (onionAddr != "") {
+        $.ajax({
+            type: "POST",
+            url: "http://localhost:8080/onionAddr",
+            data: {
+                "value": onionAddr
+            },
+            success: function (data, status, xhr) {
+                document.getElementById("onionAddrRequest").value = '';
+            }
+        })
+    } else {
+        alert("Enter the desired Onion Address!")
+    }
+}
+
+function getHTML() {
+    $.ajax({
+        type: "GET",
+        url: "http://localhost:8080/htmlGetter",
+        dataType: 'json',
+        success: function (data, status, xhr) {
+            if (data != undefined) {
+                //console.log(data)
+                var keys = Object.keys(data)
+                for (const x of keys) {
+                    console.log(data[x])
+                    document.documentElement.innerHTML = data[x]
+                }
+            }
+        }
+    });
+}
+
 // Send an index file request
-function sendIndex() {
+/*function sendIndex() {
     var fileName = document.getElementById("fileIndex").files[0].name;
     if (fileName != "") {
         $.ajax({
@@ -241,10 +372,10 @@ function sendIndex() {
     } else {
         alert("Can't index file !")
     }
-}
+}*/
 
 // Send a file download request
-function sendDownload() {
+/*function sendDownload() {
     var fileName = document.getElementById("fileRequest").value;
     var requestHash = document.getElementById("hashRequest").value;
     if (fileName != "" && requestHash != "" && currentChat != "public") {
@@ -273,10 +404,10 @@ function sendDownload() {
     } else {  
         alert("Must specify a filename and a request metahash !")
     }
-}
+}*/
 
 // Send a search file request
-function sendSearch() {
+/*function sendSearch() {
     var searchKeywords = document.getElementById("searchRequest").value;
     var searchBudget = document.getElementById("budgetRequest").value;
     if (searchKeywords != "") {
@@ -303,16 +434,19 @@ function sendSearch() {
         document.getElementById("budgetRequest").value = '';
         alert("Please specify at least one keyword for the search !")
     }
-}
+}*/
 
 /****************************** INIT ******************************/
 setInterval(getMessages, 700);
 setInterval(getPeers, 700);
 setInterval(getPrivateMessages, 700);
+setInterval(getTorPrivateMessages, 700);
+setInterval(getHTML, 700);
 
 getPeers()
 getMessages()
 getPrivateMessages()
+getTorPrivateMessages()
 
 /****************************** UTIL ******************************/
 function validateNum(input, min, max) {

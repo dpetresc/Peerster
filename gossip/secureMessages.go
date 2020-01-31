@@ -21,13 +21,13 @@ const maxRetry = 4
  */
 func (gossiper *Gossiper) SecureBytesConsumer(bytes []byte, destination string) {
 
-	gossiper.lConsensus.RLock()
-	if _, ok := gossiper.lConsensus.nodesPublicKeys[destination]; !ok{
+	gossiper.LConsensus.RLock()
+	if _, ok := gossiper.LConsensus.NodesPublicKeys[destination]; !ok{
 		fmt.Printf("NO PUBLIC KEY for %s was found\n", destination)
-		gossiper.lConsensus.RUnlock()
+		gossiper.LConsensus.RUnlock()
 		return
 	}
-	gossiper.lConsensus.RUnlock()
+	gossiper.LConsensus.RUnlock()
 
 	gossiper.connections.Lock()
 	defer gossiper.connections.Unlock()
@@ -112,7 +112,7 @@ func (gossiper *Gossiper) sendSecureMessage(bytesData []byte, tunnelId *TunnelId
 }
 
 /*
- *	HandleSecureMessage handles the tor messages coming from other peer.
+ *	HandleSecureMessage handles the Tor messages coming from other peer.
  *	secureMessage *util.SecureMessage is the message sent by the other peer.
  */
 func (gossiper *Gossiper) HandleSecureMessage(secureMessage *util.SecureMessage) {
@@ -195,13 +195,13 @@ func Equals(bytes1, bytes2 []byte) bool {
  */
 func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 
-	gossiper.lConsensus.RLock()
-	if _, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; !ok{
+	gossiper.LConsensus.RLock()
+	if _, ok := gossiper.LConsensus.NodesPublicKeys[message.Origin]; !ok{
 		fmt.Printf("NO PUBLIC KEY for %s was found\n", message.Origin)
-		gossiper.lConsensus.RUnlock()
+		gossiper.LConsensus.RUnlock()
 		return
 	}
-	gossiper.lConsensus.RUnlock()
+	gossiper.LConsensus.RUnlock()
 
 	if message.Nonce != nil && len(message.Nonce) == 32 {
 		//create new connection
@@ -228,9 +228,9 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
 		privateDH, publicDH := util.CreateDHPartialKey()
 		tunnelId.PrivateDH = privateDH
 
-		gossiper.lConsensus.RLock()
-		DHSignature := util.SignRSA(publicDH, gossiper.lConsensus.privateKey)
-		gossiper.lConsensus.RUnlock()
+		gossiper.LConsensus.RLock()
+		DHSignature := util.SignRSA(publicDH, gossiper.LConsensus.privateKey)
+		gossiper.LConsensus.RUnlock()
 
 		response := &util.SecureMessage{
 			MessageType: util.ServerHello,
@@ -255,9 +255,9 @@ func (gossiper *Gossiper) handleClientHello(message *util.SecureMessage) {
  *	must be locked at this point. Sends a ChangeCipherSec message.
  */
 func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
-	gossiper.lConsensus.RLock()
-	defer gossiper.lConsensus.RUnlock()
-	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
+	gossiper.LConsensus.RLock()
+	defer gossiper.LConsensus.RUnlock()
+	if publicKeyOrigin, ok := gossiper.LConsensus.NodesPublicKeys[message.Origin]; ok {
 		if util.VerifyRSASignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
 			tunnelId.ACKsHandshake <- true
@@ -269,7 +269,7 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
 			shaKeyShared := util.CreateDHSharedKey(message.DHPublic, privateDH)
 			tunnelId.SharedKey = shaKeyShared
 
-			DHSignature := util.SignRSA(publicDH, gossiper.lConsensus.privateKey)
+			DHSignature := util.SignRSA(publicDH, gossiper.LConsensus.privateKey)
 
 			response := &util.SecureMessage{
 				MessageType: util.ChangeCipherSec,
@@ -296,10 +296,10 @@ func (gossiper *Gossiper) handleServerHello(message *util.SecureMessage) {
  *	must be locked at this point. Sends a ServerFinished message.
  */
 func (gossiper *Gossiper) handleChangeCipherSec(message *util.SecureMessage) {
-	gossiper.lConsensus.RLock()
-	defer gossiper.lConsensus.RUnlock()
+	gossiper.LConsensus.RLock()
+	defer gossiper.LConsensus.RUnlock()
 
-	if publicKeyOrigin, ok := gossiper.lConsensus.nodesPublicKeys[message.Origin]; ok {
+	if publicKeyOrigin, ok := gossiper.LConsensus.NodesPublicKeys[message.Origin]; ok {
 		if util.VerifyRSASignature(message.DHPublic, message.DHSignature, publicKeyOrigin) {
 			tunnelId := gossiper.connections.Conns[message.Origin]
 			tunnelId.ACKsHandshake <- true
@@ -456,7 +456,7 @@ func (gossiper *Gossiper) handleData(message *util.SecureMessage) {
 func (gossiper *Gossiper) deliver(message *util.SecureMessage, tunnelId *TunnelIdentifier) {
 	tunnelId.NextID += 1
 	plaintext := util.DecryptGCM(message.EncryptedData, message.GCMNonce, tunnelId.SharedKey)
-	if gossiper.tor {
+	if gossiper.Tor {
 		gossiper.secureToTor(plaintext[36:], message.Origin)
 	} else {
 		gossiper.secureToPrivate(plaintext[36:], message.Origin)

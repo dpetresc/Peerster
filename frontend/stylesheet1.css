@@ -156,26 +156,28 @@ li {
   grid-column-end: 3;
 }
 
-/* index file */
+/* known cUIDs */
 .item6 {
+  grid-row-start: 5;
+  grid-row-end: 6;
+  grid-column-start: 2;
+  grid-column-end: 3;
+}
+
+/* OnionAddr query */
+.item7 {
   grid-row-start: 3;
   grid-row-end: 4;
   grid-column-start: 3;
   grid-column-end: 4;
 }
 
-/* download file */
-.item7 {
+/* HService Start */
+.item8 {
   grid-row-start: 4;
   grid-row-end: 5;
   grid-column-start: 3;
   grid-column-end: 4;
 }
 
-/* search file */
-.item8 {
-  grid-row-start: 5;
-  grid-row-end: 6;
-  grid-column-start: 3;
-  grid-column-end: 4;
-}
+

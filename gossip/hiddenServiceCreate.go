@@ -39,6 +39,9 @@ type LockHS struct {
 	// onion addr to corresponding circuit id
 	OnionAddrToCircuit map[string]uint32
 
+	// onion address to html page
+	HTMLForGui map[string]string
+
 	sync.RWMutex
 }
 
@@ -85,18 +88,18 @@ func (gossiper *Gossiper) getHSFromConsensus() {
 	r.Body.Close()
 
 	hashMapBytes, err := json.Marshal(CAHashMap.HS)
-	gossiper.lConsensus.Lock()
-	if !util.VerifyRSASignature(hashMapBytes, CAHashMap.Signature, gossiper.lConsensus.CAKey) {
+	gossiper.LConsensus.Lock()
+	if !util.VerifyRSASignature(hashMapBytes, CAHashMap.Signature, gossiper.LConsensus.CAKey) {
 		err = errors.New("CA corrupted")
-		gossiper.lConsensus.Unlock()
+		gossiper.LConsensus.Unlock()
 		util.CheckError(err)
 		return
 	}
-	gossiper.lConsensus.Unlock()
+	gossiper.LConsensus.Unlock()
 
-	gossiper.lHS.Lock()
-	gossiper.lHS.HashMap = CAHashMap.HS
-	gossiper.lHS.Unlock()
+	gossiper.LHS.Lock()
+	gossiper.LHS.HashMap = CAHashMap.HS
+	gossiper.LHS.Unlock()
 }
 
 /*
@@ -113,10 +116,10 @@ func (gossiper *Gossiper) createHS(packet *util.Message) {
 	privateKey := util.GetPrivateKey(util.KeysFolderPath, *packet.HSPort)
 	publicKey := privateKey.PublicKey
 	publicKeyPKCS1 := x509.MarshalPKCS1PublicKey(&publicKey)
-	gossiper.lConsensus.RLock()
+	gossiper.LConsensus.RLock()
 	// Introduction Point node
 	ip := gossiper.selectRandomNodeFromConsensus("")
-	gossiper.lConsensus.RUnlock()
+	gossiper.LConsensus.RUnlock()
 
 	if ip == "" {
 		fmt.Println("Consensus does not have enough nodes, retry later")
@@ -134,9 +137,9 @@ func (gossiper *Gossiper) createHS(packet *util.Message) {
 		OnionAddress: onionAddr,
 		Signature:    signature,
 	}
-	gossiper.lHS.Lock()
-	gossiper.lHS.MPrivateKeys[onionAddr] = privateKey
-	gossiper.lHS.Unlock()
+	gossiper.LHS.Lock()
+	gossiper.LHS.MPrivateKeys[onionAddr] = privateKey
+	gossiper.LHS.Unlock()
 	hsDescriptor.sendHSDescriptorToConsensus()
 
 	// open connection with IP
@@ -165,7 +168,7 @@ func (gossiper *Gossiper) keepAlive(ip string) {
 	for {
 		select {
 		case <-ticker.C:
-			gossiper.lConsensus.Lock()
+			gossiper.LConsensus.Lock()
 			gossiper.lCircuits.Lock()
 			// open connection with IP
 			privateMessage := &util.PrivateMessage{
@@ -183,7 +186,7 @@ func (gossiper *Gossiper) keepAlive(ip string) {
 				SignatureDH: nil,
 			}
 			gossiper.HandlePrivateMessageToSend(ip, privateMessage)
-			gossiper.lConsensus.Unlock()
+			gossiper.LConsensus.Unlock()
 			gossiper.lCircuits.Unlock()
 		}
 	}

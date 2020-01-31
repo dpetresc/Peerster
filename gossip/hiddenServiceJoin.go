@@ -65,16 +65,16 @@ func NewConnectionsToHS() *ConnectionsToHS {
  */
 func (gossiper *Gossiper) JoinHS(onionAddr string) {
 	var descriptor *HSDescriptor
-	gossiper.lHS.RLock()
-	if d, ok := gossiper.lHS.HashMap[onionAddr]; ok {
+	gossiper.LHS.RLock()
+	if d, ok := gossiper.LHS.HashMap[onionAddr]; ok {
 		descriptor = d
 	} else {
-		gossiper.lHS.RUnlock()
+		gossiper.LHS.RUnlock()
 		return
 	}
-	gossiper.lHS.RUnlock()
+	gossiper.LHS.RUnlock()
 
-	gossiper.lConsensus.Lock()
+	gossiper.LConsensus.Lock()
 	gossiper.lCircuits.Lock()
 	gossiper.connectionsToHS.Lock()
 	if _, ok := gossiper.connectionsToHS.Connections[onionAddr]; !ok {
@@ -105,5 +105,5 @@ func (gossiper *Gossiper) JoinHS(onionAddr string) {
 	}
 	gossiper.connectionsToHS.Unlock()
 	gossiper.lCircuits.Unlock()
-	gossiper.lConsensus.Unlock()
+	gossiper.LConsensus.Unlock()
 }

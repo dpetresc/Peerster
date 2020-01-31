@@ -91,7 +91,7 @@ func (gossiper *Gossiper) HandleClientPacket(packet *util.Message) {
 		} else if packet.Text != "" {
 			if packet.Destination != nil || packet.CID != nil {
 				// private message
-				if gossiper.tor {
+				if gossiper.Tor {
 					// private secure message
 					go gossiper.HandleClientTorMessage(packet)
 					//TODO: add something for the GUI?

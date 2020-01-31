@@ -33,7 +33,7 @@ func (gossiper *Gossiper) findInitiatedCircuit(torMessage *util.TorMessage, sour
 
 /*
  *	HandleTorToSecure handles the messages to send to the secure layer
- *	torMessage	the tor message
+ *	torMessage	the Tor message
  *	destination	name of the secure destination
  */
 func (gossiper *Gossiper) HandleTorToSecure(torMessage *util.TorMessage, destination string) {
@@ -56,11 +56,11 @@ func (gossiper *Gossiper) secureToTor(bytesData []byte, source string) {
 
 /*
  *	HandleSecureToTor handles the messages coming from secure layer.
- *	torMessage	the tor message
+ *	torMessage	the Tor message
  *	source	name of the secure source
  */
 func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source string) {
-	gossiper.lConsensus.Lock()
+	gossiper.LConsensus.Lock()
 	gossiper.lCircuits.Lock()
 	switch torMessage.Flag {
 	case util.Create:
@@ -105,5 +105,5 @@ func (gossiper *Gossiper) HandleSecureToTor(torMessage *util.TorMessage, source 
 		}
 	}
 	gossiper.lCircuits.Unlock()
-	gossiper.lConsensus.Unlock()
+	gossiper.LConsensus.Unlock()
 }

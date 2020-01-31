@@ -20,9 +20,9 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
 	}
 	privateMessage := gossiper.pivateMessageFromClient(message, dest)
 
-	// TODO ATTENTION LOCKS lCircuits puis ensuite lConsensus => CHANGE ???
+	// TODO ATTENTION LOCKS lCircuits puis ensuite LConsensus => CHANGE ???
 	gossiper.lCircuits.Lock()
-	gossiper.lConsensus.Lock()
+	gossiper.LConsensus.Lock()
 	if message.CID == nil {
 		// SEND
 		gossiper.HandlePrivateMessageToSend(dest, privateMessage)
@@ -30,7 +30,7 @@ func (gossiper *Gossiper) HandleClientTorMessage(message *util.Message) {
 		// REPLY
 		gossiper.HandlePrivateMessageToReply(*message.CID, privateMessage)
 	}
-	gossiper.lConsensus.Unlock()
+	gossiper.LConsensus.Unlock()
 	gossiper.lCircuits.Unlock()
 }
 

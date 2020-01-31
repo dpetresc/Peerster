@@ -20,10 +20,10 @@
 <body style="font-family:courier,arial,helvetica;">
 	<div class="grid-container">
 		<div class="item1">
-			<h1 id="title" class="title">Peerster GUI</h1>
+			<h1 id="title" class="title">Peerstor</h1>
 		</div>
 		<div class="item2">
-			<h3 id="nodeName"></h3>
+			<h2 id="nodeName"></h2>
 		</div>
 		<div class="item3">
 				<h3 id="chat">Public Chat</h3>
@@ -41,6 +41,10 @@
 				</div>
 				<input type="text" id="sendMessage" placeholder="Type your public message here" class="form-control" />
 				<button onclick="sendMessage()" class="btn btn-default" id="addMessage">Send</Button>
+				<div>
+					<input type="checkbox" id="anonymityCheck" name="anonymityCheck"checked>
+					<label for="anonymous">anonymous</label>
+				</div>
 		</div>
 		<div class="item4">
 			<h3 id="knownPeers">Known Peers</h3>
@@ -53,25 +57,20 @@
 			<ul id="ids" style="width:100%"></ul>
 		</div>
 		<div class="item6">
-			<h3>Index File</h3>
-			<input type="file" id="fileIndex" accept=".txt,audio/*,video/*,image/*" class="form-control" />
-			<button onclick="sendIndex()" class="btn btn-default" id="addIndex">Index</Button>
+			<h3 id="knownCIDs">Circuit IDs</h3>
+			<ul id="cIDs" style="width:100%"></ul>
 		</div>
 		<div class="item7">
-			<h3>Download File</h3>
-			<input type="text" id="fileRequest" placeholder="Please first select a node for the request"
+			<h3>Request Onion Address</h3>
+			<input type="text" id="onionAddrRequest" placeholder="Please enter the onion address to query"
 				class="form-control" />
-			<input type="text" id="hashRequest" placeholder="Please first select a node for the request"
-				class="form-control" />
-			<button onclick="sendDownload()" class="btn btn-default" id="addRequest">Request</Button>
+			<button onclick="addrRequest()" class="btn btn-default" id="addrRequest">Request</Button>
 		</div>
 		<div class="item8">
-			<h3>Search File</h3>
-			<input type="text" id="searchRequest" placeholder="Enter comma-separated keywords (kw1,kw2)"
+			<h3>Start Hidden Service</h3>
+			<input type="text" id="startHS" placeholder="Enter the port on which to start the HS"
 				class="form-control" />
-			<input type="text" id="budgetRequest" placeholder="Enter the budget (default 2)"
-				class="form-control" />
-			<button onclick="sendSearch()" class="btn btn-default" id="addSearch">Search</Button>
+			<button onclick="startHS()" class="btn btn-default" id="addHSStart">HS Start</Button>
 		</div>
 	</div>
 

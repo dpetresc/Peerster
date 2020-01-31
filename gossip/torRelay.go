@@ -71,9 +71,9 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 				}
 				if privateMessage.HsFlag == util.IPRequest {
 					//fmt.Println("IPRequest")
-					gossiper.lHS.RLock()
-					gossiper.lHS.OnionAddrToCircuit[privateMessage.OnionAddr] = c.ID
-					gossiper.lHS.RUnlock()
+					gossiper.LHS.RLock()
+					gossiper.LHS.OnionAddrToCircuit[privateMessage.OnionAddr] = c.ID
+					gossiper.LHS.RUnlock()
 					//fmt.Println("IPRequest")
 				} else if privateMessage.HsFlag == util.Bridge {
 					//fmt.Println("Bridge")
@@ -99,11 +99,11 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 					// IP receives the message of the RDV point. It forwards it to the server using the connection previously
 					// established with the server.
 					privateMessage.HsFlag = util.NewCo
-					gossiper.lHS.RLock()
-					if cID, ok := gossiper.lHS.OnionAddrToCircuit[privateMessage.OnionAddr]; ok {
+					gossiper.LHS.RLock()
+					if cID, ok := gossiper.LHS.OnionAddrToCircuit[privateMessage.OnionAddr]; ok {
 						gossiper.HandlePrivateMessageToReply(cID, privateMessage)
 					}
-					gossiper.lHS.RUnlock()
+					gossiper.LHS.RUnlock()
 					//fmt.Println("Introduce")
 				} else if privateMessage.HsFlag == util.Server {
 					//fmt.Println("Server")
@@ -271,8 +271,8 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 					sharedKey := util.CreateDHSharedKey(clientPublicDH, privateDH)
 					co.SharedKey = sharedKey
 
-					gossiper.lHS.RLock()
-					if privateKey, ok := gossiper.lHS.MPrivateKeys[privateMessage.OnionAddr]; ok {
+					gossiper.LHS.RLock()
+					if privateKey, ok := gossiper.LHS.MPrivateKeys[privateMessage.OnionAddr]; ok {
 						signatureDH := util.SignRSA(publicDH, privateKey)
 						newPrivMsg := &util.PrivateMessage{
 							HsFlag:      util.ServerDHFwd,
@@ -283,7 +283,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 						}
 						gossiper.HandlePrivateMessageToSend(co.RDVPoint, newPrivMsg)
 					}
-					gossiper.lHS.RUnlock()
+					gossiper.LHS.RUnlock()
 				}
 				//fmt.Println("ClientDH")
 			} else if privateMessage.HsFlag == util.ServerDH {
@@ -292,8 +292,8 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				defer gossiper.connectionsToHS.Unlock()
 
 				if onionAddr, ok := gossiper.connectionsToHS.CookiesToAddr[privateMessage.Cookie]; ok {
-					gossiper.lHS.RLock()
-					if descriptor, ok := gossiper.lHS.HashMap[privateMessage.OnionAddr]; ok {
+					gossiper.LHS.RLock()
+					if descriptor, ok := gossiper.LHS.HashMap[privateMessage.OnionAddr]; ok {
 						pK := descriptor.PublicKey
 						pKRSA, err := x509.ParsePKCS1PublicKey(pK)
 						util.CheckError(err)
@@ -312,7 +312,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 						}
 						gossiper.HandlePrivateMessageToSend(co.RDVPoint, newPrivMsg)
 					}
-					gossiper.lHS.RUnlock()
+					gossiper.LHS.RUnlock()
 				}
 				//fmt.Println("ServerDH")
 			} else if privateMessage.HsFlag == util.HTTP {
@@ -342,8 +342,11 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				if onionAddr, ok := gossiper.connectionsToHS.CookiesToAddr[privateMessage.Cookie]; ok {
 					co := gossiper.connectionsToHS.Connections[onionAddr]
 					plaintext := util.DecryptGCM(privateMessage.GCMEncryption, privateMessage.GCMNonce, co.SharedKey)
-					//html := string(plaintext)
-					// TODO
+					html := string(plaintext)
+					fmt.Println(html)
+					gossiper.LHS.Lock()
+					gossiper.LHS.HTMLForGui[onionAddr] = html
+					gossiper.LHS.Unlock()
 				}
 			} else {
 				// "Normal" private message

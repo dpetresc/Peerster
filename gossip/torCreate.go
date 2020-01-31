@@ -46,7 +46,7 @@ type InitiatedCircuit struct {
  *	nodesToExclude nodes that either crashed or where already selected (guard node)
  */
 func (gossiper *Gossiper) selectRandomNodeFromConsensus(nodeToExclude string, nodesToExclude ...string) string {
-	nbNodes := len(gossiper.lConsensus.nodesPublicKeys) - 1 - len(nodesToExclude)
+	nbNodes := len(gossiper.LConsensus.NodesPublicKeys) - 1 - len(nodesToExclude)
 	if nodeToExclude != "" {
 		nbNodes = nbNodes - 1
 	}
@@ -55,7 +55,7 @@ func (gossiper *Gossiper) selectRandomNodeFromConsensus(nodeToExclude string, no
 	}
 
 	randIndex := rand.Intn(nbNodes)
-	for identity := range gossiper.lConsensus.nodesPublicKeys {
+	for identity := range gossiper.LConsensus.NodesPublicKeys {
 		if identity == gossiper.Name || identity == nodeToExclude ||
 			util.SliceContains(nodesToExclude, identity) {
 			continue
@@ -76,13 +76,13 @@ func (gossiper *Gossiper) selectRandomNodeFromConsensus(nodeToExclude string, no
  */
 func (gossiper *Gossiper) selectPath(destination string, crashedNodes ...string) []string {
 	// need to have at least two other nodes except the source and destination and the nodes that crashed
-	nbNodes := len(gossiper.lConsensus.nodesPublicKeys) - 2 - len(crashedNodes)
+	nbNodes := len(gossiper.LConsensus.NodesPublicKeys) - 2 - len(crashedNodes)
 	if nbNodes < 2 {
 		fmt.Println("PeersTor hasn't enough active nodes, try again later")
 		return nil
 	}
 	// destination has to exist in consensus
-	if _, ok := gossiper.lConsensus.nodesPublicKeys[destination]; !ok {
+	if _, ok := gossiper.LConsensus.NodesPublicKeys[destination]; !ok {
 		fmt.Println("Destination node isn't in PeersTor")
 		return nil
 	}
@@ -148,7 +148,7 @@ func (gossiper *Gossiper) generateAndEncryptPartialDHKey(toNode *TorNode) []byte
 	privateDH, publicDH := util.CreateDHPartialKey()
 	toNode.PartialPrivateKey = privateDH
 	// encrypt with guard node key
-	publicDHEncrypted := util.EncryptRSA(publicDH, gossiper.lConsensus.nodesPublicKeys[toNode.Identity])
+	publicDHEncrypted := util.EncryptRSA(publicDH, gossiper.LConsensus.NodesPublicKeys[toNode.Identity])
 	return publicDHEncrypted
 }
 
@@ -220,10 +220,10 @@ func (gossiper *Gossiper) HandleTorIntermediateCreateReply(torMessage *util.TorM
  *	Already locked when called
  */
 func (gossiper *Gossiper) HandleTorCreateRequest(torMessage *util.TorMessage, source string) {
-	// we haven't already received the Create tor message - ignore it otherwise
+	// we haven't already received the Create Tor message - ignore it otherwise
 	if _, ok := gossiper.lCircuits.circuits[torMessage.CircuitID]; !ok {
 		// decrpyt public DH key
-		publicDHReceived := util.DecryptRSA(torMessage.DHPublic, gossiper.lConsensus.privateKey)
+		publicDHReceived := util.DecryptRSA(torMessage.DHPublic, gossiper.LConsensus.privateKey)
 
 		// create DH shared key
 		privateDH, publicDH := util.CreateDHPartialKey()
@@ -271,11 +271,11 @@ func (gossiper *Gossiper) setTorExpirationTimeoutInitiator(dest string, circuit 
 			fmt.Printf("EXPIRED circuit with %s\n", dest)
 			ticker.Stop()
 			gossiper.lCircuits.Lock()
-			gossiper.lConsensus.Lock()
+			gossiper.LConsensus.Lock()
 			if c, ok := gossiper.lCircuits.initiatedCircuit[dest]; ok {
 				gossiper.changeCircuitPath(c, dest)
 			}
-			gossiper.lConsensus.Unlock()
+			gossiper.LConsensus.Unlock()
 			gossiper.lCircuits.Unlock()
 			return
 		case <-circuit.TimeoutChan:
@@ -310,9 +310,16 @@ func (gossiper *Gossiper) setTorExpirationTimeoutIntermediate(circuit *Circuit) 
 			// time out, the circuit expires.
 			fmt.Println("EXPIRED circuit")
 			ticker.Stop()
-			gossiper.lCircuits.Lock()
+			/*gossiper.lCircuits.Lock()
 			delete(gossiper.lCircuits.circuits, circuit.ID)
-			gossiper.lCircuits.Unlock()
+			gossiper.lCircuits.Unlock()*/
+
+			gossiper.LLastPrivateMsg.Lock()
+				delete(gossiper.LLastPrivateMsg.LastPrivateMsgTor, circuit.ID)
+				gossiper.LLastPrivateMsg.Unlock()
+				gossiper.lCircuits.Lock()
+				delete(gossiper.lCircuits.circuits, circuit.ID)
+				gossiper.lCircuits.Unlock()
 			return
 		case <-circuit.TimeoutChan:
 			// circuit tunnel was used, reset the timer.

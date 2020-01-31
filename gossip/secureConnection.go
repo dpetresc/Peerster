@@ -8,7 +8,7 @@ import (
 )
 
 /*
- *	TunnelIdentifier represents the tor tunnel between 2 peers.
+ *	TunnelIdentifier represents the Tor tunnel between 2 peers.
  *	TimeoutChan chan bool channel used to indicates to the timer if it needs to be reset, i.e., each time a new message
  *	is sent through the secured tunnel.
  *	Nonce       []byte is the unique identifier of the tunnel.
