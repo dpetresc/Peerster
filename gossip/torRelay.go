@@ -68,13 +68,13 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 					return
 				}
 				if privateMessage.HsFlag == util.IPRequest {
-					fmt.Println("IPRequest")
+					//fmt.Println("IPRequest")
 					gossiper.lHS.RLock()
 					gossiper.lHS.OnionAddrToCircuit[privateMessage.OnionAddr] = c.ID
 					gossiper.lHS.RUnlock()
-					fmt.Println("IPRequest")
+					//fmt.Println("IPRequest")
 				} else if privateMessage.HsFlag == util.Bridge {
-					fmt.Println("Bridge")
+					//fmt.Println("Bridge")
 					// RDV point receives the message containing the cookie and the identity of the introduction point (IP)
 					// from the client. It forwards the cookie and its name to the IP. Finally, it keeps a state linking
 					// the cookie and the circuit used by the client.
@@ -91,9 +91,9 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 					}
 
 					gossiper.HandlePrivateMessageToSend(privateMessage.IPIdentity, newPrivMsg)
-					fmt.Println("Bridge")
+					//fmt.Println("Bridge")
 				} else if privateMessage.HsFlag == util.Introduce {
-					fmt.Println("Introduce")
+					//fmt.Println("Introduce")
 					// IP receives the message of the RDV point. It forwards it to the server using the connection previously
 					// established with the server.
 					privateMessage.HsFlag = util.NewCo
@@ -102,10 +102,9 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 						gossiper.HandlePrivateMessageToReply(cID, privateMessage)
 					}
 					gossiper.lHS.RUnlock()
-					fmt.Println("Introduce")
-
+					//fmt.Println("Introduce")
 				} else if privateMessage.HsFlag == util.Server {
-					fmt.Println("Server")
+					//fmt.Println("Server")
 					// RDV point receives the message of the server. It notifies the client and keeps a state linking, the
 					// cookie, the client's circuit ID and the server's circuit ID.
 					fmt.Println(privateMessage.Cookie)
@@ -121,9 +120,9 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 						gossiper.HandlePrivateMessageToReply(pair.Client, newPrivMsg)
 					}
 					gossiper.bridges.Unlock()
-					fmt.Println("Server")
+					//fmt.Println("Server")
 				} else if privateMessage.HsFlag == util.ClientDHFwd || privateMessage.HsFlag == util.ServerDHFwd || privateMessage.HsFlag == util.HTTPFwd {
-					fmt.Println("FORWARD")
+					//fmt.Println("FORWARD")
 					// RDV points receives a message that it must forward.
 					gossiper.bridges.Lock()
 					if pair, ok := gossiper.bridges.ClientServerPairs[privateMessage.Cookie]; ok {
@@ -137,9 +136,9 @@ func (gossiper *Gossiper) HandleTorRelayRequest(torMessage *util.TorMessage, sou
 						gossiper.HandlePrivateMessageToReply(pair.Other(c.ID), privateMessage)
 					}
 					gossiper.bridges.Unlock()
-					fmt.Println("FORWARD")
+					//fmt.Println("FORWARD")
 				} else {
-					fmt.Println("ELSE")
+					//fmt.Println("ELSE")
 					gossiper.handlePrivatePacketTor(privateMessage, privateMessage.Origin, c.ID)
 				}
 			}
@@ -219,7 +218,7 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 			privateMessage := privateMessageFromTorData(torMessagePayload)
 
 			if privateMessage.HsFlag == util.NewCo {
-				fmt.Println("NewCo")
+				//fmt.Println("NewCo")
 				// Server receives the connection request with the cookie from the IP. It opens a connection to the RDV
 				// point and sends the cookie.
 				newPrivMsg := &util.PrivateMessage{
@@ -234,9 +233,9 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 				}
 				gossiper.hsCo.Unlock()
 				gossiper.HandlePrivateMessageToSend(privateMessage.RDVPoint, newPrivMsg)
-				fmt.Println("NewCo")
+				//fmt.Println("NewCo")
 			} else if privateMessage.HsFlag == util.Ready {
-				fmt.Println("Ready")
+				//fmt.Println("Ready")
 				// Client receives notification from RDV point and starts the DH key exchange.
 				gossiper.connectionsToHS.Lock()
 				defer gossiper.connectionsToHS.Unlock()
@@ -254,9 +253,9 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 
 					gossiper.HandlePrivateMessageToSend(co.RDVPoint, newPrivMsg)
 				}
-				fmt.Println("Ready")
+				//fmt.Println("Ready")
 			} else if privateMessage.HsFlag == util.ClientDH {
-				fmt.Println("ClientDH")
+				//fmt.Println("ClientDH")
 				// Server receives the DH part of the client, computes its part and the shared key. It keeps a state
 				// of the connection.
 				gossiper.hsCo.Lock()
@@ -281,9 +280,9 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 					}
 					gossiper.lHS.RUnlock()
 				}
-				fmt.Println("ClientDH")
+				//fmt.Println("ClientDH")
 			} else if privateMessage.HsFlag == util.ServerDH {
-				fmt.Println("ServerDH")
+				//fmt.Println("ServerDH")
 				gossiper.connectionsToHS.Lock()
 				defer gossiper.connectionsToHS.Unlock()
 
@@ -300,10 +299,10 @@ func (gossiper *Gossiper) HandleTorInitiatorRelayReply(torMessage *util.TorMessa
 					}
 					gossiper.lHS.RUnlock()
 				}
-				fmt.Println("ServerDH")
+				//fmt.Println("ServerDH")
 			} else {
 				// "Normal" private message
-				fmt.Println("ELSE")
+				//fmt.Println("ELSE")
 				gossiper.handlePrivatePacketTor(privateMessage, circuit.ExitNode.Identity, circuit.ID)
 			}
 

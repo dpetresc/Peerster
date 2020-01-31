@@ -10,7 +10,7 @@ import (
 func (gossiper *Gossiper) readGossipPacket() (*util.GossipPacket, *net.UDPAddr) {
 	connection := gossiper.conn
 	var packet util.GossipPacket
-	packetBytes := make([]byte, util.MaxUDPSize + 2000)
+	packetBytes := make([]byte, util.MaxUDPSize + 10000)
 	n, sourceAddr, err := connection.ReadFromUDP(packetBytes)
 	util.CheckError(err)
 	// In case simple flag is set, we add manually the RelayPeerAddr of the packets afterwards
